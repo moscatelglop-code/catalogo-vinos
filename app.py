@@ -9,7 +9,7 @@ def load_data():
         # Cargamos el archivo (ahora sin skiprows porque ya borraste la columna/fila vacía)
         # Si sigue habiendo una fila vacía arriba, usa skiprows=1
         df = pd.read_csv(
-            'CATALOGO 2026 GLOP.xlsx - Hoja1.csv', 
+            'CATALOGO 2026 GLOP.xlsx', 
             encoding='latin1', 
             sep=',',
             on_bad_lines='skip',
