@@ -11,7 +11,7 @@ def load_data():
     # 2. engine='python' -> Permite una lectura más flexible que el motor estándar de C.
     try:
         df = pd.read_csv(
-            'CATALOGO 2026 GLOP.xlsx - Hoja1.csv', 
+            'CATALOGO 2026 GLOP.xlsx', 
             skiprows=1, 
             encoding='latin1', 
             on_bad_lines='skip', 
