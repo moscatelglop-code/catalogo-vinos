@@ -6,21 +6,31 @@ st.set_page_config(page_title="Catálogo de Vinos GLOP 2026", layout="wide")
 # Función para cargar datos de forma segura
 @st.cache_data
 def load_data():
-    # Intentamos leer con latin1 por las tildes y saltamos la primera fila vacía
-    df = pd.read_csv('CATALOGO 2026 GLOP.xlsx', skiprows=1, encoding='latin1')
-    
-    # 1. Eliminamos columnas que sean totalmente vacías (como la primera columna sin nombre)
-    df = df.dropna(how='all', axis=1)
-    
-    # 2. Limpiamos espacios en blanco en los nombres de las columnas
-    df.columns = df.columns.str.strip()
-    
-    # 3. Limpiamos espacios en los datos de texto para evitar errores de búsqueda
-    for col in df.select_dtypes(['object']).columns:
-        df[col] = df[col].str.strip()
+    # Parámetros añadidos para evitar el error de tokenización:
+    # 1. on_bad_lines='skip' -> Si una línea está mal, se la salta en lugar de romper la app.
+    # 2. engine='python' -> Permite una lectura más flexible que el motor estándar de C.
+    try:
+        df = pd.read_csv(
+            'CATALOGO 2026 GLOP.xlsx - Hoja1.csv', 
+            skiprows=1, 
+            encoding='latin1', 
+            on_bad_lines='skip', 
+            engine='python',
+            sep=None  # Detecta automáticamente si es coma o punto y coma
+        )
         
-    return df
-
+        # Eliminamos columnas totalmente vacías
+        df = df.dropna(how='all', axis=1)
+        
+        # Limpiamos nombres de columnas y textos
+        df.columns = df.columns.str.strip()
+        for col in df.select_dtypes(['object']).columns:
+            df[col] = df[col].str.strip()
+            
+        return df
+    except Exception as e:
+        st.error(f"Error al procesar el CSV: {e}")
+        return pd.DataFrame() # Devuelve un dataframe vacío para que no explote la app
 try:
     df = load_data()
 
