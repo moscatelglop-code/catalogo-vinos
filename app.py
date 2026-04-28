@@ -1,38 +1,33 @@
 import streamlit as st
 import pandas as pd
-import io
 
 st.set_page_config(page_title="Catálogo Vinos 2026", layout="wide")
 
 @st.cache_data
 def load_data():
     try:
-        # 1. Leer el archivo como texto plano primero para limpiar las comas iniciales
-        with open('CATALOGO 2026 GLOP.xlsx', 'r', encoding='latin1') as f:
-            lineas = f.readlines()
-        
-        # 2. Limpieza manual: Quitamos la primera coma de cada línea y filtramos líneas vacías
-        lineas_limpias = []
-        for l in lineas:
-            l = l.strip()
-            if l.startswith(','):
-                l = l[1:] # Quita la primera coma que desplaza todo
-            if len(l) > 10: # Solo líneas con contenido real
-                lineas_limpias.append(l)
-        
-        # 3. Convertir de nuevo a DataFrame
-        csv_limpio = io.StringIO('\n'.join(lineas_limpias))
-        df = pd.read_csv(csv_limpio, sep=',', on_bad_lines='skip')
+        # Cargamos el archivo (ahora sin skiprows porque ya borraste la columna/fila vacía)
+        # Si sigue habiendo una fila vacía arriba, usa skiprows=1
+        df = pd.read_csv(
+            'CATALOGO 2026 GLOP.xlsx - Hoja1.csv', 
+            encoding='latin1', 
+            sep=',',
+            on_bad_lines='skip',
+            engine='python'
+        )
 
-        # 4. Limpieza de nombres de columnas
+        # 1. Limpieza básica
+        df = df.dropna(how='all', axis=0) # Quitar filas vacías
+        
+        # 2. Normalizar nombres de columnas (quitar espacios y a MAYÚSCULAS)
         df.columns = [str(c).strip().upper() for c in df.columns]
         
-        # 5. Limpieza de datos (quitar espacios y caracteres raros de control)
+        # 3. Limpiar los datos de las celdas
         df = df.map(lambda x: str(x).strip() if pd.notnull(x) else "")
             
         return df
     except Exception as e:
-        st.error(f"Error crítico al procesar el archivo: {e}")
+        st.error(f"Error al leer el archivo: {e}")
         return pd.DataFrame()
 
 df = load_data()
@@ -40,38 +35,43 @@ df = load_data()
 if not df.empty:
     st.title("🍷 Catálogo de Vinos GLOP 2026")
 
-    # Buscador lateral
-    busqueda = st.sidebar.text_input("Buscar por nombre de vino o bodega")
+    # Buscador en la barra lateral
+    st.sidebar.header("Filtros")
+    busqueda = st.sidebar.text_input("Buscar vino o bodega...")
 
-    # Filtrar (Usamos posiciones para que sea infalible)
-    # Columna 0: BODEGA, Columna 1: VINO, Columna 7: PRECIO HORECA, Columna 9: URL
-    df_f = df.copy()
+    # Filtrado (buscamos en las columnas VINO y BODEGA)
+    df_final = df.copy()
     if busqueda:
-        mask = df_f.iloc[:, 1].str.contains(busqueda, case=False, na=False) | \
-               df_f.iloc[:, 0].str.contains(busqueda, case=False, na=False)
-        df_f = df_f[mask]
+        df_final = df_final[
+            df_final['VINO'].str.contains(busqueda, case=False, na=False) |
+            df_final['BODEGA'].str.contains(busqueda, case=False, na=False)
+        ]
 
-    # Mostrar resultados
-    if df_f.empty:
+    if df_final.empty:
         st.warning("No se encontraron resultados.")
     else:
+        # Mostrar catálogo en 3 columnas
         cols = st.columns(3)
-        for i, (idx, row) in enumerate(df_f.iterrows()):
+        for i, (idx, row) in enumerate(df_final.iterrows()):
             with cols[i % 3]:
-                # Imagen (Columna 9 es la URL)
-                url = row.iloc[9] if len(row) > 9 else ""
-                if str(url).startswith("http"):
+                # Gestión de la imagen
+                url = row.get('URL', '')
+                if url.startswith("http"):
                     st.image(url, use_container_width=True)
                 else:
-                    st.image("https://via.placeholder.com/300x400?text=Sin+Foto", use_container_width=True)
+                    st.image("https://via.placeholder.com/300x400?text=Vino", use_container_width=True)
                 
-                # Datos por posición
-                st.subheader(row.iloc[1]) # VINO
-                st.write(f"🏠 **Bodega:** {row.iloc[0]}")
-                st.write(f"🌍 **Origen:** {row.iloc[5]}") # ORIGEN
+                # Datos del vino
+                st.subheader(row.get('VINO', 'Vino'))
+                st.write(f"🏠 **Bodega:** {row.get('BODEGA', 'N/A')}")
+                st.write(f"🌍 **Origen:** {row.get('ORIGEN', 'N/A')}")
+                st.write(f"🍇 **Uvas:** {row.get('UVAS', 'N/A')}")
                 
-                precio = row.iloc[7] # PRECIO HORECA
-                st.info(f"💰 PVP Horeca: {precio}€")
+                # Precio destacado
+                precio = row.get('PRECIO HORECA', '')
+                if precio:
+                    st.info(f"💰 Precio Horeca: {precio}€")
                 st.divider()
+
 else:
-    st.warning("No se pudo cargar la base de datos. Comprueba el nombre del archivo en GitHub.")
+    st.warning("Por favor, asegúrate de que el archivo CSV esté subido a GitHub con el nombre correcto.")
