@@ -1,13 +1,12 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Catálogo Vinos 2026", layout="wide")
+st.set_page_config(page_title="Catàleg Vins GLOP 2026", layout="wide")
 
 @st.cache_data
 def load_data():
     try:
-        # Cargamos el archivo (ahora sin skiprows porque ya borraste la columna/fila vacía)
-        # Si sigue habiendo una fila vacía arriba, usa skiprows=1
+        # Carreguem el fitxer amb la codificació correcta per a les tildes
         df = pd.read_csv(
             'CATALOGO 2026 GLOP.xlsx', 
             encoding='latin1', 
@@ -15,63 +14,68 @@ def load_data():
             on_bad_lines='skip',
             engine='python'
         )
-
-        # 1. Limpieza básica
-        df = df.dropna(how='all', axis=0) # Quitar filas vacías
         
-        # 2. Normalizar nombres de columnas (quitar espacios y a MAYÚSCULAS)
+        # Eliminem files que estiguin totalment buides
+        df = df.dropna(how='all', axis=0)
+        
+        # Netegem els noms de les columnes (tot a majúscules i sense espais)
         df.columns = [str(c).strip().upper() for c in df.columns]
         
-        # 3. Limpiar los datos de las celdas
+        # Netegem els espais en blanc de les dades
         df = df.map(lambda x: str(x).strip() if pd.notnull(x) else "")
-            
+        
         return df
     except Exception as e:
-        st.error(f"Error al leer el archivo: {e}")
+        st.error(f"Error carregant les dades: {e}")
         return pd.DataFrame()
 
 df = load_data()
 
 if not df.empty:
-    st.title("🍷 Catálogo de Vinos GLOP 2026")
+    st.title("🍷 Catàleg de Vins GLOP 2026")
 
-    # Buscador en la barra lateral
-    st.sidebar.header("Filtros")
-    busqueda = st.sidebar.text_input("Buscar vino o bodega...")
+    # Buscador lateral
+    st.sidebar.header("Cercador")
+    terme = st.sidebar.text_input("Cerca per vi o celler...")
 
-    # Filtrado (buscamos en las columnas VINO y BODEGA)
-    df_final = df.copy()
-    if busqueda:
-        df_final = df_final[
-            df_final['VINO'].str.contains(busqueda, case=False, na=False) |
-            df_final['BODEGA'].str.contains(busqueda, case=False, na=False)
+    # Filtre de seguretat: comprovem si les columnes existeixen
+    col_vino = 'VINO' if 'VINO' in df.columns else df.columns[1]
+    col_bodega = 'BODEGA' if 'BODEGA' in df.columns else df.columns[0]
+    col_url = 'URL' if 'URL' in df.columns else df.columns[-1]
+
+    # Lògica de filtrat
+    df_f = df.copy()
+    if terme:
+        df_f = df_f[
+            df_f[col_vino].str.contains(terme, case=False, na=False) |
+            df_f[col_bodega].str.contains(terme, case=False, na=False)
         ]
 
-    if df_final.empty:
-        st.warning("No se encontraron resultados.")
+    # Mostrar quadrícula
+    if df_f.empty:
+        st.warning("No s'han trobat vins.")
     else:
-        # Mostrar catálogo en 3 columnas
         cols = st.columns(3)
-        for i, (idx, row) in enumerate(df_final.iterrows()):
+        for i, (idx, row) in enumerate(df_f.iterrows()):
             with cols[i % 3]:
-                # Gestión de la imagen
-                url = row.get('URL', '')
-                if url.startswith("http"):
+                # Gestió de la imatge
+                url = row.get(col_url, "")
+                if str(url).startswith("http"):
                     st.image(url, use_container_width=True)
                 else:
-                    st.image("https://via.placeholder.com/300x400?text=Vino", use_container_width=True)
+                    st.image("https://via.placeholder.com/300x400?text=Sense+Foto", use_container_width=True)
                 
-                # Datos del vino
-                st.subheader(row.get('VINO', 'Vino'))
-                st.write(f"🏠 **Bodega:** {row.get('BODEGA', 'N/A')}")
+                # Dades del vi
+                st.subheader(row.get(col_vino, "Vi"))
+                st.write(f"🏠 **Celler:** {row.get(col_bodega, 'N/A')}")
                 st.write(f"🌍 **Origen:** {row.get('ORIGEN', 'N/A')}")
-                st.write(f"🍇 **Uvas:** {row.get('UVAS', 'N/A')}")
+                st.write(f"🍇 **Raïm:** {row.get('UVAS', 'N/A')}")
                 
-                # Precio destacado
-                precio = row.get('PRECIO HORECA', '')
-                if precio:
-                    st.info(f"💰 Precio Horeca: {precio}€")
+                # Preu Horeca
+                preu = row.get('PRECIO HORECA', '')
+                if preu:
+                    st.info(f"💰 Preu Horeca: {preu}€")
                 st.divider()
 
 else:
-    st.warning("Por favor, asegúrate de que el archivo CSV esté subido a GitHub con el nombre correcto.")
+    st.info("Esperant que el fitxer CSV estigui disponible a GitHub...")
