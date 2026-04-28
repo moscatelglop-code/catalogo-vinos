@@ -1,38 +1,38 @@
 import streamlit as st
 import pandas as pd
+import io
 
 st.set_page_config(page_title="Catálogo Vinos 2026", layout="wide")
 
 @st.cache_data
 def load_data():
     try:
-        # 1. Probamos con la codificación típica de Excel en español para evitar caracteres raros
-        df = pd.read_csv(
-            'CATALOGO 2026 GLOP.xlsx', 
-            skiprows=1, 
-            encoding='latin1', 
-            sep=',',
-            on_bad_lines='skip',
-            engine='python'
-        )
+        # 1. Leer el archivo como texto plano primero para limpiar las comas iniciales
+        with open('CATALOGO 2026 GLOP.xlsx', 'r', encoding='latin1') as f:
+            lineas = f.readlines()
+        
+        # 2. Limpieza manual: Quitamos la primera coma de cada línea y filtramos líneas vacías
+        lineas_limpias = []
+        for l in lineas:
+            l = l.strip()
+            if l.startswith(','):
+                l = l[1:] # Quita la primera coma que desplaza todo
+            if len(l) > 10: # Solo líneas con contenido real
+                lineas_limpias.append(l)
+        
+        # 3. Convertir de nuevo a DataFrame
+        csv_limpio = io.StringIO('\n'.join(lineas_limpias))
+        df = pd.read_csv(csv_limpio, sep=',', on_bad_lines='skip')
 
-        # 2. LIMPIEZA RADICAL DE COLUMNAS VACÍAS
-        # Esto elimina esa primera columna de comas que desplaza todo
-        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-        df = df.dropna(how='all', axis=1) # Elimina columnas que sean todo nulos
-        df = df.dropna(how='all', axis=0) # Elimina filas vacías
-
-        # 3. NORMALIZAR NOMBRES DE COLUMNAS
-        # Quitamos espacios, puntos y pasamos a mayúsculas
-        df.columns = [str(c).strip().upper().replace('.', '').replace(' ', '') for c in df.columns]
-
-        # 4. LIMPIAR DATOS DE LAS CELDAS
-        # Convertimos todo a texto limpio para que no falle la búsqueda
+        # 4. Limpieza de nombres de columnas
+        df.columns = [str(c).strip().upper() for c in df.columns]
+        
+        # 5. Limpieza de datos (quitar espacios y caracteres raros de control)
         df = df.map(lambda x: str(x).strip() if pd.notnull(x) else "")
             
         return df
     except Exception as e:
-        st.error(f"Error al leer el archivo: {e}")
+        st.error(f"Error crítico al procesar el archivo: {e}")
         return pd.DataFrame()
 
 df = load_data()
@@ -40,55 +40,38 @@ df = load_data()
 if not df.empty:
     st.title("🍷 Catálogo de Vinos GLOP 2026")
 
-    # Mostramos un buscador que mire en "VINO" y "BODEGA"
-    # Intentamos detectar las columnas incluso si han cambiado de nombre
-    c_vino = next((c for c in df.columns if 'VINO' in c), df.columns[1])
-    c_bodega = next((c for c in df.columns if 'BODEGA' in c), df.columns[0])
-    c_url = next((c for c in df.columns if 'URL' in c), df.columns[-1])
-    c_origen = next((c for c in df.columns if 'ORIGEN' in c), None)
-    c_precio = next((c for c in df.columns if 'HORECA' in c), None)
+    # Buscador lateral
+    busqueda = st.sidebar.text_input("Buscar por nombre de vino o bodega")
 
-    busqueda = st.sidebar.text_input("Buscar vino o bodega...")
-
-    df_final = df.copy()
+    # Filtrar (Usamos posiciones para que sea infalible)
+    # Columna 0: BODEGA, Columna 1: VINO, Columna 7: PRECIO HORECA, Columna 9: URL
+    df_f = df.copy()
     if busqueda:
-        # Buscamos ignorando tildes y mayúsculas
-        df_final = df_final[
-            df_final[c_vino].str.contains(busqueda, case=False, na=False) |
-            df_final[c_bodega].str.contains(busqueda, case=False, na=False)
-        ]
+        mask = df_f.iloc[:, 1].str.contains(busqueda, case=False, na=False) | \
+               df_f.iloc[:, 0].str.contains(busqueda, case=False, na=False)
+        df_f = df_f[mask]
 
-    if df_final.empty:
-        st.warning("No se encontraron vinos.")
+    # Mostrar resultados
+    if df_f.empty:
+        st.warning("No se encontraron resultados.")
     else:
-        # Cuadrícula
         cols = st.columns(3)
-        for i, (idx, row) in enumerate(df_final.iterrows()):
+        for i, (idx, row) in enumerate(df_f.iterrows()):
             with cols[i % 3]:
-                # Imagen
-                url = row[c_url]
-                if url.startswith("http"):
+                # Imagen (Columna 9 es la URL)
+                url = row.iloc[9] if len(row) > 9 else ""
+                if str(url).startswith("http"):
                     st.image(url, use_container_width=True)
                 else:
-                    st.image("https://via.placeholder.com/300x400?text=Vino", use_container_width=True)
+                    st.image("https://via.placeholder.com/300x400?text=Sin+Foto", use_container_width=True)
                 
-                # Texto (usamos .get por si acaso)
-                st.subheader(row[c_vino])
-                st.write(f"🏠 **Bodega:** {row[c_bodega]}")
+                # Datos por posición
+                st.subheader(row.iloc[1]) # VINO
+                st.write(f"🏠 **Bodega:** {row.iloc[0]}")
+                st.write(f"🌍 **Origen:** {row.iloc[5]}") # ORIGEN
                 
-                if c_origen:
-                    st.write(f"📍 **Origen:** {row[c_origen]}")
-                
-                if c_precio:
-                    # Intentamos que el precio se vea bien
-                    st.success(f"Precio Horeca: {row[c_precio]}€")
-                
+                precio = row.iloc[7] # PRECIO HORECA
+                st.info(f"💰 PVP Horeca: {precio}€")
                 st.divider()
-
-    # Pestaña de ayuda técnica por si algo falla
-    with st.expander("Ayuda: Si no ves los datos correctamente"):
-        st.write("Columnas detectadas actualmente:", list(df.columns))
-        st.write("Vista previa de los datos:")
-        st.dataframe(df.head())
 else:
-    st.error("El archivo CSV no se ha cargado. Verifica que el nombre en GitHub sea exacto.")
+    st.warning("No se pudo cargar la base de datos. Comprueba el nombre del archivo en GitHub.")
