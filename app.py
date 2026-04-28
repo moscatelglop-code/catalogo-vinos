@@ -8,7 +8,7 @@ def load_data():
     try:
         # Cargamos el archivo saltando la primera fila de comas vacías
         df = pd.read_csv(
-            'CATALOGO 2026 GLOP.xlsx - Hoja1.csv', 
+            'CATALOGO 2026 GLOP.xlsx', 
             skiprows=1, 
             encoding='latin1', 
             on_bad_lines='skip', 
