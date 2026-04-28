@@ -7,7 +7,7 @@ st.set_page_config(page_title="Catálogo de Vinos GLOP 2026", layout="wide")
 @st.cache_data
 def load_data():
     # Intentamos leer con latin1 por las tildes y saltamos la primera fila vacía
-    df = pd.read_csv('CATALOGO 2026 GLOP.xlsx - Hoja1.csv', skiprows=1, encoding='latin1')
+    df = pd.read_csv('CATALOGO 2026 GLOP.xlsx', skiprows=1, encoding='latin1')
     
     # 1. Eliminamos columnas que sean totalmente vacías (como la primera columna sin nombre)
     df = df.dropna(how='all', axis=1)
