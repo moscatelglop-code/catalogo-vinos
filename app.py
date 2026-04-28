@@ -6,9 +6,9 @@ st.set_page_config(page_title="Catálogo de Vinos GLOP 2026", layout="wide")
 @st.cache_data
 def load_data():
     try:
-        # Cargamos el archivo saltando la primera fila de comas vacías
+        # Cargamos el archivo ignorando líneas malas y detectando el separador
         df = pd.read_csv(
-            'CATALOGO 2026 GLOP.xlsx', 
+            'CATALOGO 2026 GLOP.xlsx - Hoja1.csv', 
             skiprows=1, 
             encoding='latin1', 
             on_bad_lines='skip', 
@@ -16,83 +16,74 @@ def load_data():
             sep=None
         )
         
-        # ELIMINAR COLUMNAS VACÍAS (Esto quita la primera columna sin nombre que desplaza todo)
-        df = df.dropna(how='all', axis=1)
+        # 1. Eliminamos columnas y filas que estén completamente vacías
+        df = df.dropna(how='all', axis=1).dropna(how='all', axis=0)
         
-        # Limpiar nombres de columnas: quitar espacios y pasar a MAYÚSCULAS
+        # 2. LIMPIEZA CRÍTICA DE COLUMNAS: Quitamos espacios y pasamos a mayúsculas
         df.columns = [str(c).strip().upper() for c in df.columns]
         
-        # Limpiar los datos de las celdas
+        # 3. Limpiamos los textos dentro de las celdas
         for col in df.select_dtypes(['object']).columns:
             df[col] = df[col].astype(str).str.strip()
             
         return df
     except Exception as e:
-        st.error(f"Error al cargar el CSV: {e}")
+        st.error(f"Error al procesar el CSV: {e}")
         return pd.DataFrame()
 
-df = load_data()
+try:
+    df = load_data()
 
-if df.empty:
-    st.error("No se han podido cargar los datos. Revisa el nombre del archivo en GitHub.")
-else:
-    st.title("🍷 Catálogo de Vinos GLOP 2026")
-
-    # Identificar columnas dinámicamente por si acaso
-    # Buscamos la que contenga la palabra VINO, BODEGA, etc.
-    def find_col(name, columns):
-        for c in columns:
-            if name in c: return c
-        return None
-
-    c_vino = find_col('VINO', df.columns)
-    c_bodega = find_col('BODEGA', df.columns)
-    c_origen = find_col('ORIGEN', df.columns)
-    c_url = find_col('URL', df.columns)
-    c_precio = find_col('HORECA', df.columns)
-
-    # BARRA LATERAL
-    st.sidebar.header("Buscador")
-    busqueda = st.sidebar.text_input("Vino o Bodega")
-    
-    filtro_origen = []
-    if c_origen:
-        opciones = sorted(df[c_origen].unique())
-        filtro_origen = st.sidebar.multiselect("Origen", opciones)
-
-    # FILTRADO
-    df_f = df.copy()
-    if busqueda:
-        df_f = df_f[df_f[c_vino].str.contains(busqueda, case=False, na=False) | 
-                    df_f[c_bodega].str.contains(busqueda, case=False, na=False)]
-    if filtro_origen:
-        df_f = df_f[df_f[c_origen].isin(filtro_origen)]
-
-    # MOSTRAR VINOS
-    if df_f.empty:
-        st.info("No hay vinos que coincidan con la búsqueda.")
+    if df.empty:
+        st.error("El archivo está vacío o no se pudo leer correctamente.")
     else:
-        # Cuadrícula de 3 columnas
-        grid = st.columns(3)
-        for i, (idx, row) in enumerate(df_f.iterrows()):
-            with grid[i % 3]:
-                # Imagen
-                url = row.get(c_url, "")
-                if isinstance(url, str) and url.startswith("http"):
-                    st.image(url, use_container_width=True)
-                else:
-                    st.image("https://via.placeholder.com/300x450?text=Foto+no+disponible", use_container_width=True)
-                
-                # Info
-                st.subheader(row[c_vino])
-                st.write(f"**{row[c_bodega]}**")
-                st.caption(f"📍 {row.get(c_origen, 'N/A')} | 📅 {row.get('AÑADA', '')}")
-                
-                if c_precio:
-                    st.success(f"Precio Horeca: {row[c_precio]}€")
-                st.divider()
+        st.title("🍷 Catálogo de Vinos GLOP 2026")
 
-    # DIAGNÓSTICO (Solo si quieres ver qué pasa por detrás, puedes borrar esto luego)
-    with st.expander("Ver estructura técnica del archivo"):
-        st.write("Columnas detectadas:", list(df.columns))
-        st.dataframe(df.head())
+        # Nombres de columnas normalizados (ahora todos están en MAYÚSCULAS y sin espacios)
+        col_vino = 'VINO'
+        col_bodega = 'BODEGA'
+        col_origen = 'ORIGEN'
+        col_url = 'URL'
+
+        # Barra lateral
+        st.sidebar.header("Filtros")
+        busqueda = st.sidebar.text_input("Buscar vino o bodega...")
+        
+        opciones_origen = df[col_origen].unique() if col_origen in df.columns else []
+        filtro_origen = st.sidebar.multiselect("Filtrar por Origen", options=opciones_origen)
+
+        # Filtrado inteligente
+        df_final = df.copy()
+        if busqueda:
+            mask = df_final[col_vino].str.contains(busqueda, case=False, na=False) | \
+                   df_final[col_bodega].str.contains(busqueda, case=False, na=False)
+            df_final = df_final[mask]
+        
+        if filtro_origen:
+            df_final = df_final[df_final[col_origen].isin(filtro_origen)]
+
+        # Mostrar resultados
+        if df_final.empty:
+            st.warning("No hay resultados para esta búsqueda.")
+        else:
+            cols = st.columns(3)
+            for i, (index, row) in enumerate(df_final.iterrows()):
+                with cols[i % 3]:
+                    # Gestión de imagen
+                    url_img = row.get(col_url, '')
+                    if url_img and str(url_img).startswith('http'):
+                        st.image(url_img, use_container_width=True)
+                    else:
+                        st.image("https://via.placeholder.com/300x400?text=Vino+sin+foto", use_container_width=True)
+                    
+                    st.subheader(row.get(col_vino, 'Sin nombre'))
+                    st.write(f"🏠 **Bodega:** {row.get(col_bodega, 'N/A')}")
+                    st.write(f"🌍 **Origen:** {row.get(col_origen, 'N/A')}")
+                    
+                    # Precio (buscamos la columna de precio horeca)
+                    precio = row.get('PRECIO HORECA', 'Consulte')
+                    st.info(f"💰 Precio Horeca: {precio}€")
+                    st.divider()
+
+except Exception as e:
+    st.error(f"Se ha producido un error inesperado: {e}")
