@@ -5,7 +5,13 @@ import pandas as pd
 st.set_page_config(page_title="Catálogo de Vinos GLOP 2026", layout="wide")
 
 # Cargar los datos del CSV que subiste
-df = pd.read_csv('CATALOGO 2026 GLOP.xlsx', skipinitialspace=True).iloc[:, 1:]
+# El parámetro encoding='latin1' permite leer la Ñ y las tildes sin errores
+try:
+    df = pd.read_csv('CATALOGO 2026 GLOP.xlsx - Hoja1.csv', skiprows=1, encoding='latin1')
+    # Limpiamos columnas vacías que suelen aparecer en exportaciones de Excel
+    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+except Exception as e:
+    st.error(f"Error de lectura: {e}")
 
 st.title("🍷 Catálogo de Vinos GLOP 2026")
 st.sidebar.header("Filtros de Búsqueda")
