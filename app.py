@@ -5,7 +5,7 @@ import pandas as pd
 st.set_page_config(page_title="Catálogo de Vinos GLOP 2026", layout="wide")
 
 # Cargar los datos del CSV que subiste
-df = pd.read_csv('CATALOGO 2026 GLOP.xlsx - Hoja1.csv', skipinitialspace=True).iloc[:, 1:]
+df = pd.read_csv('CATALOGO 2026 GLOP.xlsx', skipinitialspace=True).iloc[:, 1:]
 
 st.title("🍷 Catálogo de Vinos GLOP 2026")
 st.sidebar.header("Filtros de Búsqueda")
