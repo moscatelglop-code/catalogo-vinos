@@ -1,23 +1,25 @@
 import streamlit as st
 import pandas as pd
+from fpdf import FPDF
+import io
 
 st.set_page_config(page_title="Catálogo Vinos GLOP 2026", layout="wide")
 
-# CSS optimizado
+# --- ESTILOS CSS ---
 st.markdown("""
     <style>
     [data-testid="stImage"] img {
-        height: 300px;
+        height: 250px;
         object-fit: contain;
         background-color: #ffffff;
         border-radius: 10px;
-        padding: 10px;
     }
-    .stButton>button {
-        width: 100%;
+    .stButton>button { width: 100%; border-radius: 10px; }
+    .selected-card {
+        border: 2px solid #722f37;
+        padding: 10px;
         border-radius: 10px;
-        background-color: #722f37; /* Color borgoña vino */
-        color: white;
+        background-color: #fff4f5;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -25,7 +27,6 @@ st.markdown("""
 @st.cache_data
 def load_data():
     try:
-        # Cargamos el Excel
         df = pd.read_excel('CATALOGO 2026 GLOP.xlsx', engine='openpyxl')
         df = df.dropna(how='all', axis=1).dropna(how='all', axis=0)
         df.columns = [str(c).strip().upper() for c in df.columns]
@@ -35,26 +36,47 @@ def load_data():
         st.error(f"Error al abrir el archivo Excel: {e}")
         return pd.DataFrame()
 
-@st.dialog("Ficha Técnica")
-def mostrar_detalles(row):
-    col1, col2 = st.columns([1, 1.5])
-    with col1:
-        url = row.get('URL', '')
-        st.image(url if str(url).startswith("http") else "https://via.placeholder.com/300x450?text=Sin+Foto", use_container_width=True)
-    with col2:
-        st.header(row.get('VINO', 'Vino'))
-        st.subheader(f"🍷 {row.get('BODEGA', 'Bodega')}")
-        st.divider()
-        st.write(f"📍 **Origen:** {row.get('ORIGEN', 'N/A')}")
-        st.write(f"🍇 **Uvas:** {row.get('UVAS', 'N/A')}")
-        st.write(f"📅 **Añada:** {row.get('AÑADA', 'N/A')}")
+# --- FUNCIÓN GENERAR PDF ---
+def generar_pdf(vinos_seleccionados):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    
+    # Título
+    pdf.set_text_color(114, 47, 55) # Color Borgoña
+    pdf.cell(190, 10, "CATÁLOGO DE VINOS SELECCIONADOS - GLOP 2026", ln=True, align='C')
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", "", 10)
+    pdf.set_text_color(0, 0, 0)
+    
+    for _, row in vinos_seleccionados.iterrows():
+        # Encabezado del vino
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(190, 8, f"{row['VINO']}", ln=True, border='B')
         
-        # Búsqueda dinámica de la columna de precio
+        # Detalles
+        pdf.set_font("Arial", "", 10)
+        pdf.cell(95, 7, f"Bodega: {row['BODEGA']}", ln=False)
+        pdf.cell(95, 7, f"Origen: {row['ORIGEN']}", ln=True)
+        
+        pdf.cell(95, 7, f"Uvas: {row['UVAS']}", ln=False)
+        
+        # Buscar columna Horeca
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
-        if c_horeca:
-            st.metric(label="Precio Tarifa Horeca", value=f"{row[c_horeca]}€")
+        precio = f"{row[c_horeca]}€" if c_horeca else "N/A"
+        
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(95, 7, f"Precio Horeca: {precio}", ln=True)
+        pdf.ln(5)
+        
+    return pdf.output(dest='S').encode('latin-1')
 
 df = load_data()
+
+# --- ESTADO DE SELECCIÓN ---
+if 'seleccionados' not in st.session_state:
+    st.session_state.seleccionados = []
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -63,46 +85,56 @@ with st.sidebar:
     except:
         st.title("🍷 GLOP DYD")
     
-    st.separator()
+    st.divider()
     busqueda = st.text_input("🔍 Buscar vino o bodega...")
     
-    # Filtro por Origen (D.O.)
-    if not df.empty and 'ORIGEN' in df.columns:
-        lista_origenes = ["Todos"] + sorted(df['ORIGEN'].unique().tolist())
-        filtro_origen = st.selectbox("📍 Filtrar por Origen", lista_origenes)
+    # Botón de exportar
+    st.subheader("📄 Exportación")
+    if st.session_state.seleccionados:
+        df_export = df[df.index.isin(st.session_state.seleccionados)]
+        pdf_data = generar_pdf(df_export)
+        st.download_button(
+            label="📥 Descargar PDF Seleccionados",
+            data=pdf_data,
+            file_name="catalogo_seleccionado_glop.pdf",
+            mime="application/pdf",
+            type="primary"
+        )
+        if st.button("Limpiar selección"):
+            st.session_state.seleccionados = []
+            st.rerun()
     else:
-        filtro_origen = "Todos"
+        st.info("Selecciona vinos en el catálogo para exportar.")
 
-# --- LÓGICA DE FILTRADO ---
+# --- CUADRÍCULA ---
 if not df.empty:
     df_f = df.copy()
-    
-    # Aplicar búsqueda de texto
     if busqueda:
         df_f = df_f[df_f['VINO'].str.contains(busqueda, case=False) | 
                     df_f['BODEGA'].str.contains(busqueda, case=False)]
+
+    st.title("🍷 Catálogo Digital")
     
-    # Aplicar filtro de origen
-    if filtro_origen != "Todos":
-        df_f = df_f[df_f['ORIGEN'] == filtro_origen]
+    cols = st.columns(4)
+    for i, (idx, row) in enumerate(df_f.iterrows()):
+        with cols[i % 4]:
+            # Checkbox de selección
+            seleccionado = st.checkbox("Seleccionar", key=f"sel_{idx}", 
+                                     value=idx in st.session_state.seleccionados)
+            
+            if seleccionado and idx not in st.session_state.seleccionados:
+                st.session_state.seleccionados.append(idx)
+            elif not seleccionado and idx in st.session_state.seleccionados:
+                st.session_state.seleccionados.remove(idx)
 
-    st.title(f"🍷 Catálogo 2026 ({len(df_f)} productos)")
-
-    # Cuadrícula de productos
-    if len(df_f) > 0:
-        cols = st.columns(4)
-        for i, (idx, row) in enumerate(df_f.iterrows()):
-            with cols[i % 4]:
-                url = row.get('URL', "")
-                img_url = url if str(url).startswith("http") else "https://via.placeholder.com/200x300?text=Vino"
-                st.image(img_url, use_container_width=True)
-                
-                st.markdown(f"**{row['VINO']}**")
-                st.caption(f"{row['BODEGA']} | {row['ORIGEN']}")
-                
-                if st.button("Ver ficha", key=f"btn_{idx}"):
-                    mostrar_detalles(row)
-    else:
-        st.warning("No se encontraron vinos con esos filtros.")
-else:
-    st.info("Asegúrate de que el archivo 'CATALOGO 2026 GLOP.xlsx' esté en la misma carpeta.")
+            url = row.get('URL', "")
+            img_url = url if str(url).startswith("http") else "https://via.placeholder.com/200x300?text=Vino"
+            st.image(img_url, use_container_width=True)
+            
+            st.markdown(f"**{row['VINO']}**")
+            st.caption(f"{row['BODEGA']}")
+            
+            # Mostrar precio rápido si existe
+            c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
+            if c_horeca:
+                st.write(f"**{row[c_horeca]}€**")
