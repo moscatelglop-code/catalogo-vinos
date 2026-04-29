@@ -38,40 +38,44 @@ def load_data():
 
 # --- FUNCIÓN GENERAR PDF ---
 def generar_pdf(vinos_seleccionados):
+    # Usamos FPDF de fpdf2
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
+    
+    # IMPORTANTE: Usamos 'helvetica' que es estándar, 
+    # pero para símbolos raros como el € a veces es mejor usar 'EUR' o 'Euro'
+    pdf.set_font("helvetica", "B", 16)
     
     # Título
-    pdf.set_text_color(114, 47, 55) # Color Borgoña
+    pdf.set_text_color(114, 47, 55) 
     pdf.cell(190, 10, "CATÁLOGO DE VINOS SELECCIONADOS - GLOP 2026", ln=True, align='C')
     pdf.ln(10)
     
-    pdf.set_font("Arial", "", 10)
+    pdf.set_font("helvetica", "", 10)
     pdf.set_text_color(0, 0, 0)
     
     for _, row in vinos_seleccionados.iterrows():
-        # Encabezado del vino
-        pdf.set_font("Arial", "B", 12)
+        # Encabezado del vino (UTF-8 activado por defecto en fpdf2)
+        pdf.set_font("helvetica", "B", 12)
         pdf.cell(190, 8, f"{row['VINO']}", ln=True, border='B')
         
         # Detalles
-        pdf.set_font("Arial", "", 10)
+        pdf.set_font("helvetica", "", 10)
         pdf.cell(95, 7, f"Bodega: {row['BODEGA']}", ln=False)
         pdf.cell(95, 7, f"Origen: {row['ORIGEN']}", ln=True)
         
         pdf.cell(95, 7, f"Uvas: {row['UVAS']}", ln=False)
         
-        # Buscar columna Horeca
+        # Precio - Reemplazamos el símbolo € por 'Euros' si da problemas de fuente
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
-        precio = f"{row[c_horeca]}€" if c_horeca else "N/A"
+        precio_val = row[c_horeca] if c_horeca else "N/A"
         
-        pdf.set_font("Arial", "B", 10)
-        pdf.cell(95, 7, f"Precio Horeca: {precio}", ln=True)
+        pdf.set_font("helvetica", "B", 10)
+        pdf.cell(95, 7, f"Precio Horeca: {precio_val} Euros", ln=True)
         pdf.ln(5)
-        
-    return pdf.output(dest='S').encode('latin-1')
-
+    
+    # En fpdf2, output() ya devuelve los bytes directamente si no se pone nombre de archivo
+    return pdf.output()
 df = load_data()
 
 # --- ESTADO DE SELECCIÓN ---
