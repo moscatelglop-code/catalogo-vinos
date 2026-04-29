@@ -7,7 +7,8 @@ import os
 from tempfile import NamedTemporaryFile
 
 st.set_page_config(page_title="Catálogo Vinos GLOP 2026", layout="wide")
-
+# Si usas fpdf2 (lo más probable en 2026)
+return bytes(pdf.output())
 # --- ESTILOS CSS ---
 st.markdown("""
     <style>
