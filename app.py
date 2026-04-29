@@ -27,12 +27,9 @@ st.markdown("""
 @st.cache_data
 def load_data():
     try:
-        # Asegúrate de que el nombre del archivo coincida exactamente
         df = pd.read_excel('CATALOGO 2026 GLOP.xlsx', engine='openpyxl')
         df = df.dropna(how='all', axis=1).dropna(how='all', axis=0)
-        # Normalizamos nombres de columnas
         df.columns = [str(c).strip().upper() for c in df.columns]
-        # Limpieza de strings
         df = df.map(lambda x: str(x).strip() if pd.notnull(x) else "")
         return df
     except Exception as e:
@@ -56,7 +53,6 @@ def mostrar_detalles(row):
         st.write(f"**Uvas:** {row.get('UVAS', 'N/A')}")
         st.write(f"**Añada:** {row.get('AÑADA', row.get('AÑO', 'N/A'))}")
         
-        # Búsqueda dinámica de precio HORECA
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
         if c_horeca:
             st.metric(label="Precio Tarifa Horeca", value=f"{row[c_horeca]} €")
@@ -64,15 +60,14 @@ def mostrar_detalles(row):
         st.divider()
         st.caption("Información técnica para uso comercial. Precios válidos para 2026.")
 
-# 4. FUNCIÓN GENERAR PDF (INCLUYE ORIGEN, UVAS Y PRECIO)
+# 4. FUNCIÓN GENERAR PDF
 def generar_pdf(vinos_seleccionados):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Encabezado
     pdf.set_font("Helvetica", "B", 16)
-    pdf.set_text_color(114, 47, 55) # Color vino
+    pdf.set_text_color(114, 47, 55) 
     pdf.cell(190, 10, "CATALOGO DE VINOS SELECCIONADOS - GLOP 2026", ln=1, align='C')
     pdf.ln(10)
     
@@ -83,7 +78,6 @@ def generar_pdf(vinos_seleccionados):
         url_img = str(row.get('URL', ""))
         tmp_path = None
 
-        # Procesamiento de Imagen
         if url_img.startswith("http"):
             try:
                 res = requests.get(url_img, headers=headers, timeout=5)
@@ -96,7 +90,6 @@ def generar_pdf(vinos_seleccionados):
             finally:
                 if tmp_path and os.path.exists(tmp_path): os.remove(tmp_path)
 
-        # Bloque de Texto (X=45 para no solapar con imagen)
         pdf.set_xy(45, y_inicial)
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(114, 47, 55)
@@ -106,30 +99,25 @@ def generar_pdf(vinos_seleccionados):
         pdf.set_x(45)
         pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(0, 0, 0)
-        
         bodega = str(row.get('BODEGA', 'N/A')).encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(0, 6, f"Bodega: {bodega}", ln=1)
         
-        # Origen y Uvas (Requerimiento)
         pdf.set_x(45)
         origen = str(row.get('ORIGEN', 'N/A')).encode('latin-1', 'replace').decode('latin-1')
         uvas = str(row.get('UVAS', 'N/A')).encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(0, 6, f"Origen: {origen} | Uvas: {uvas}", ln=1)
         
-        # Precio Horeca (Requerimiento)
         pdf.set_x(45)
         pdf.set_font("Helvetica", "B", 10)
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
         precio = f"{row[c_horeca]} EUR" if c_horeca else "Consultar"
         pdf.cell(0, 6, f"Precio Horeca: {precio}", ln=1)
 
-        # Línea de separación
         y_final = max(pdf.get_y(), y_inicial + 32)
         pdf.set_y(y_final)
         pdf.line(10, y_final, 200, y_final)
         pdf.ln(5)
         
-        # Salto de página si el contenido desborda
         if pdf.get_y() > 250: pdf.add_page()
 
     return bytes(pdf.output())
@@ -140,10 +128,15 @@ df = load_data()
 if 'seleccionados' not in st.session_state:
     st.session_state.seleccionados = []
 
-# --- BARRA LATERAL (SIDEBAR) ---
+# --- BARRA LATERAL (SIDEBAR) CON LOGO ---
 with st.sidebar:
-    st.title("🍷 GLOP")
-    st.write("Catálogo interactivo")
+    # AÑADIMOS EL LOGO AQUÍ
+    try:
+        st.image("LOGO GLOP DYD.jpeg", use_container_width=True)
+    except:
+        st.error("No se encontró el archivo de logo 'LOGO GLOP DYD.jpeg'")
+    
+    st.title("Catálogo Vinos")
     st.divider()
     busqueda = st.text_input("🔍 Buscar por vino o bodega...")
     
@@ -177,12 +170,10 @@ if not df.empty:
 
     st.title("Catálogo Digital 2026")
     
-    # Cuadrícula de 4 columnas
     cols = st.columns(4)
     for i, (idx, row) in enumerate(df_f.iterrows()):
         with cols[i % 4]:
             with st.container(border=True):
-                # Selección
                 is_selected = idx in st.session_state.seleccionados
                 if st.checkbox("Seleccionar", key=f"sel_{idx}", value=is_selected):
                     if idx not in st.session_state.seleccionados:
@@ -192,15 +183,12 @@ if not df.empty:
                     st.session_state.seleccionados.remove(idx)
                     st.rerun()
 
-                # Imagen
                 img_url = row.get('URL', "https://via.placeholder.com/200x300")
                 st.image(img_url, use_container_width=True)
                 
-                # Información básica
                 st.markdown(f"**{row['VINO']}**")
                 st.caption(f"{row['BODEGA']}")
                 
-                # Botón detalles
                 if st.button("🔍 Ver detalles", key=f"btn_{idx}"):
                     mostrar_detalles(row)
 else:
