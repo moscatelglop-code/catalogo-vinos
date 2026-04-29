@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 import io
+import requests
+from tempfile import NamedTemporaryFile
 
 st.set_page_config(page_title="Catálogo Vinos GLOP 2026", layout="wide")
 
@@ -38,49 +40,74 @@ def load_data():
 
 # --- FUNCIÓN GENERAR PDF ---
 def generar_pdf(vinos_seleccionados):
-    # Usamos FPDF de fpdf2
     pdf = FPDF()
     pdf.add_page()
     
-    # Fuente estándar
+    # Configuración de título
     pdf.set_font("helvetica", "B", 16)
-    
-    # Título - Usamos el sistema clásico (ln=1 significa salto de línea)
     pdf.set_text_color(114, 47, 55) 
     pdf.cell(190, 10, "CATALOGO DE VINOS SELECCIONADOS - GLOP 2026", ln=1, align='C')
     pdf.ln(10)
     
     for _, row in vinos_seleccionados.iterrows():
-        # Encabezado del vino
+        # --- LÓGICA DE IMAGEN ---
+        # Guardamos la posición actual para escribir el texto al lado de la imagen
+        y_inicial = pdf.get_y()
+        url_img = row.get('URL', "")
+        
+        # Intentar cargar la imagen si la URL es válida
+        img_mostrada = False
+        if str(url_img).startswith("http"):
+            try:
+                response = requests.get(url_img, timeout=5)
+                if response.status_status == 200:
+                    with NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                        tmp.write(response.content)
+                        # Dibujamos la imagen (x, y, ancho, alto)
+                        pdf.image(tmp.name, x=10, y=y_inicial, w=20) 
+                        img_mostrada = True
+            except:
+                pass # Si falla la imagen, el PDF sigue generando el texto
+        
+        # --- LÓGICA DE TEXTO ---
+        # Si hay imagen, movemos el cursor a la derecha (x=35)
+        x_texto = 35 if img_mostrada else 10
+        pdf.set_x(x_texto)
+        
+        # Título del vino
         pdf.set_font("helvetica", "B", 12)
         pdf.set_text_color(114, 47, 55)
-        
-        # Limpiamos el texto para evitar caracteres extraños
         nombre_vino = str(row.get('VINO', 'Vino')).encode('latin-1', 'ignore').decode('latin-1')
-        pdf.cell(190, 8, nombre_vino, ln=1, border='B')
+        pdf.cell(0, 8, nombre_vino, ln=1)
         
-        # Detalles
+        # Detalles: Bodega y AÑADA
+        pdf.set_x(x_texto)
         pdf.set_font("helvetica", "", 10)
         pdf.set_text_color(0, 0, 0)
         
         bodega = str(row.get('BODEGA', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
+        añada = str(row.get('AÑADA', row.get('AÑO', 'N/A'))) # Busca la columna AÑADA o AÑO
+        
+        pdf.cell(0, 6, f"Bodega: {bodega} | Añada: {añada}", ln=1)
+        
+        # Uvas y Origen
+        pdf.set_x(x_texto)
         origen = str(row.get('ORIGEN', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
-        uvas = str(row.get('UVAS', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
-        
-        pdf.cell(95, 7, f"Bodega: {bodega}", ln=0)
-        pdf.cell(95, 7, f"Origen: {origen}", ln=1)
-        
-        pdf.cell(95, 7, f"Uvas: {uvas}", ln=0)
+        pdf.cell(0, 6, f"Origen: {origen}", ln=1)
         
         # Precio
+        pdf.set_x(x_texto)
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
         precio_val = str(row[c_horeca]) if c_horeca else "N/A"
-        
         pdf.set_font("helvetica", "B", 10)
-        pdf.cell(95, 7, f"Precio Horeca: {precio_val} Euros", ln=1)
+        pdf.cell(0, 6, f"Precio Horeca: {precio_val} Euros", ln=1)
+        
+        # Espaciado para el siguiente vino (asegurando que baje más que la imagen)
+        pdf.set_y(max(pdf.get_y(), y_inicial + 25))
         pdf.ln(5)
-    
-    # Convertimos a bytes de forma segura para Streamlit
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y()) # Línea divisoria
+        pdf.ln(5)
+
     return bytes(pdf.output())
 df = load_data()
 
