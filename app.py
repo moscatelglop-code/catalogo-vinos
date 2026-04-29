@@ -43,70 +43,79 @@ def generar_pdf(vinos_seleccionados):
     pdf = FPDF()
     pdf.add_page()
     
-    # Configuración de título
+    # Título
     pdf.set_font("helvetica", "B", 16)
     pdf.set_text_color(114, 47, 55) 
     pdf.cell(190, 10, "CATALOGO DE VINOS SELECCIONADOS - GLOP 2026", ln=1, align='C')
     pdf.ln(10)
     
+    # Cabecera para peticiones (evita bloqueos de servidores)
+    headers = {'User-Agent': 'Mozilla/5.0'}
+
     for _, row in vinos_seleccionados.iterrows():
-        # --- LÓGICA DE IMAGEN ---
-        # Guardamos la posición actual para escribir el texto al lado de la imagen
         y_inicial = pdf.get_y()
-        url_img = row.get('URL', "")
+        url_img = str(row.get('URL', ""))
         
-        # Intentar cargar la imagen si la URL es válida
         img_mostrada = False
-        if str(url_img).startswith("http"):
+        
+        # --- INTENTO DE DESCARGA DE IMAGEN ---
+        if url_img.startswith("http"):
             try:
-                response = requests.get(url_img, timeout=5)
-                if response.status_status == 200:
+                # Descargamos la imagen con un timeout para que no se quede colgado
+                res = requests.get(url_img, headers=headers, timeout=10)
+                if res.status_code == 200:
+                    # Usamos un archivo temporal
                     with NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-                        tmp.write(response.content)
-                        # Dibujamos la imagen (x, y, ancho, alto)
-                        pdf.image(tmp.name, x=10, y=y_inicial, w=20) 
-                        img_mostrada = True
-            except:
-                pass # Si falla la imagen, el PDF sigue generando el texto
+                        tmp.write(res.content)
+                        tmp_path = tmp.name
+                    
+                    # Insertar imagen: x=10, y=actual, ancho=20mm
+                    pdf.image(tmp_path, x=10, y=y_inicial, w=20)
+                    img_mostrada = True
+            except Exception as e:
+                # Si falla, imprimimos el error en la consola de Streamlit para debuggear
+                print(f"Error descargando imagen de {url_img}: {e}")
+
+        # --- CONTENIDO DE TEXTO ---
+        # Si hay imagen, el texto empieza en x=35, si no, en x=10
+        pdf.set_xy(35 if img_mostrada else 10, y_inicial)
         
-        # --- LÓGICA DE TEXTO ---
-        # Si hay imagen, movemos el cursor a la derecha (x=35)
-        x_texto = 35 if img_mostrada else 10
-        pdf.set_x(x_texto)
-        
-        # Título del vino
+        # Nombre del Vino
         pdf.set_font("helvetica", "B", 12)
         pdf.set_text_color(114, 47, 55)
-        nombre_vino = str(row.get('VINO', 'Vino')).encode('latin-1', 'ignore').decode('latin-1')
-        pdf.cell(0, 8, nombre_vino, ln=1)
+        nombre = str(row.get('VINO', 'Vino')).encode('latin-1', 'ignore').decode('latin-1')
+        pdf.cell(0, 7, nombre, ln=1)
         
-        # Detalles: Bodega y AÑADA
-        pdf.set_x(x_texto)
+        # Detalles (Añada, Bodega, Origen)
+        pdf.set_x(35 if img_mostrada else 10)
         pdf.set_font("helvetica", "", 10)
         pdf.set_text_color(0, 0, 0)
         
         bodega = str(row.get('BODEGA', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
-        añada = str(row.get('AÑADA', row.get('AÑO', 'N/A'))) # Busca la columna AÑADA o AÑO
-        
-        pdf.cell(0, 6, f"Bodega: {bodega} | Añada: {añada}", ln=1)
-        
-        # Uvas y Origen
-        pdf.set_x(x_texto)
+        anada = str(row.get('AÑADA', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
         origen = str(row.get('ORIGEN', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
+        
+        pdf.cell(0, 6, f"Bodega: {bodega} | Añada: {anada}", ln=1)
+        pdf.set_x(35 if img_mostrada else 10)
         pdf.cell(0, 6, f"Origen: {origen}", ln=1)
         
         # Precio
-        pdf.set_x(x_texto)
+        pdf.set_x(35 if img_mostrada else 10)
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
-        precio_val = str(row[c_horeca]) if c_horeca else "N/A"
+        precio = f"{row[c_horeca]} EUR" if c_horeca else "Consultar"
         pdf.set_font("helvetica", "B", 10)
-        pdf.cell(0, 6, f"Precio Horeca: {precio_val} Euros", ln=1)
-        
-        # Espaciado para el siguiente vino (asegurando que baje más que la imagen)
-        pdf.set_y(max(pdf.get_y(), y_inicial + 25))
+        pdf.cell(0, 6, f"Precio Horeca: {precio}", ln=1)
+
+        # Separación y línea final
+        # Aseguramos que el cursor baje al menos hasta el final de la imagen (20mm + algo de margen)
+        proximo_y = max(pdf.get_y(), y_inicial + 28)
+        pdf.set_y(proximo_y)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(5)
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y()) # Línea divisoria
-        pdf.ln(5)
+
+        # Control de salto de página manual si estamos muy abajo
+        if pdf.get_y() > 250:
+            pdf.add_page()
 
     return bytes(pdf.output())
 df = load_data()
