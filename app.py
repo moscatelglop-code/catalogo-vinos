@@ -49,7 +49,7 @@ def generar_pdf(vinos_seleccionados):
     pdf.cell(190, 10, "CATALOGO DE VINOS SELECCIONADOS - GLOP 2026", ln=1, align='C')
     pdf.ln(10)
     
-    # Cabecera para peticiones (evita bloqueos de servidores)
+    # Cabecera para peticiones (evita bloqueos)
     headers = {'User-Agent': 'Mozilla/5.0'}
 
     for _, row in vinos_seleccionados.iterrows():
@@ -57,28 +57,32 @@ def generar_pdf(vinos_seleccionados):
         url_img = str(row.get('URL', ""))
         
         img_mostrada = False
+        img_h_final = 0 # Guardaremos el alto calculado
         
         # --- INTENTO DE DESCARGA DE IMAGEN ---
         if url_img.startswith("http"):
             try:
-                # Descargamos la imagen con un timeout para que no se quede colgado
+                # Descargamos la imagen
                 res = requests.get(url_img, headers=headers, timeout=10)
                 if res.status_code == 200:
-                    # Usamos un archivo temporal
                     with NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                         tmp.write(res.content)
                         tmp_path = tmp.name
                     
-                    # Insertar imagen: x=10, y=actual, ancho=20mm
-                    pdf.image(tmp_path, x=10, y=y_inicial, w=20)
+                    # --- ESCALADO PROPORCIONAL ---
+                    # TRUCO: Definimos un ancho fijo (20mm) y alto=0.
+                    # FPDF calculará el alto proporcional automáticamente.
+                    info = pdf.image(tmp_path, x=10, y=y_inicial, w=20, h=0)
+                    
+                    # Obtenemos el alto que FPDF calculó para usarlo en el espaciado
+                    img_h_final = info.h
                     img_mostrada = True
             except Exception as e:
-                # Si falla, imprimimos el error en la consola de Streamlit para debuggear
-                print(f"Error descargando imagen de {url_img}: {e}")
+                print(f"Error con imagen de {url_img}: {e}")
 
         # --- CONTENIDO DE TEXTO ---
-        # Si hay imagen, el texto empieza en x=35, si no, en x=10
-        pdf.set_xy(35 if img_mostrada else 10, y_inicial)
+        # El texto siempre alineado en x=35 para que se vea ordenado
+        pdf.set_xy(35, y_inicial)
         
         # Nombre del Vino
         pdf.set_font("helvetica", "B", 12)
@@ -86,35 +90,42 @@ def generar_pdf(vinos_seleccionados):
         nombre = str(row.get('VINO', 'Vino')).encode('latin-1', 'ignore').decode('latin-1')
         pdf.cell(0, 7, nombre, ln=1)
         
-        # Detalles (Añada, Bodega, Origen)
-        pdf.set_x(35 if img_mostrada else 10)
+        # Detalles (Añada, Bodega)
+        pdf.set_x(35)
         pdf.set_font("helvetica", "", 10)
         pdf.set_text_color(0, 0, 0)
         
         bodega = str(row.get('BODEGA', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
-        anada = str(row.get('AÑADA', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
+        anada = str(row.get('AÑADA', row.get('AÑO', 'N/A'))).encode('latin-1', 'ignore').decode('latin-1')
         origen = str(row.get('ORIGEN', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
         
         pdf.cell(0, 6, f"Bodega: {bodega} | Añada: {anada}", ln=1)
-        pdf.set_x(35 if img_mostrada else 10)
+        pdf.set_x(35)
         pdf.cell(0, 6, f"Origen: {origen}", ln=1)
         
         # Precio
-        pdf.set_x(35 if img_mostrada else 10)
+        pdf.set_x(35)
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
         precio = f"{row[c_horeca]} EUR" if c_horeca else "Consultar"
         pdf.set_font("helvetica", "B", 10)
         pdf.cell(0, 6, f"Precio Horeca: {precio}", ln=1)
 
-        # Separación y línea final
-        # Aseguramos que el cursor baje al menos hasta el final de la imagen (20mm + algo de margen)
-        proximo_y = max(pdf.get_y(), y_inicial + 28)
-        pdf.set_y(proximo_y)
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(5)
+        # --- ESPACIADO DINÁMICO ---
+        # Calculamos dónde termina el vino actual basándonos en:
+        # El final del texto (pdf.get_y()) O el final de la imagen (y_inicial + alto_imagen).
+        
+        # Le damos un mínimo de 25mm de alto por vino para que no queden muy pegados.
+        fin_de_texto = pdf.get_y()
+        fin_de_imagen = y_inicial + img_h_final
+        
+        proximo_y = max(fin_de_texto, fin_de_imagen, y_inicial + 25)
+        
+        pdf.set_y(proximo_y + 3) # Margen de 3mm antes de la línea
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y()) # Línea divisoria
+        pdf.ln(5) # Margen de 5mm después de la línea
 
-        # Control de salto de página manual si estamos muy abajo
-        if pdf.get_y() > 250:
+        # Salto de página automático si estamos muy abajo
+        if pdf.get_y() > 260:
             pdf.add_page()
 
     return bytes(pdf.output())
