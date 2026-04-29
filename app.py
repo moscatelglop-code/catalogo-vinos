@@ -128,7 +128,7 @@ if 'seleccionados' not in st.session_state:
 
 # Sidebar
 with st.sidebar:
-    st.title("🍷 GLOP DYD")
+    st.title("🍷 GLOP")
     busqueda = st.text_input("🔍 Buscar vino...")
     if st.session_state.seleccionados:
         df_export = df[df.index.isin(st.session_state.seleccionados)]
