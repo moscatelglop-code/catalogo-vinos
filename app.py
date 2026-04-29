@@ -42,40 +42,41 @@ def generar_pdf(vinos_seleccionados):
     pdf = FPDF()
     pdf.add_page()
     
-    # IMPORTANTE: Usamos 'helvetica' que es estándar, 
-    # pero para símbolos raros como el € a veces es mejor usar 'EUR' o 'Euro'
+    # Configuración de fuente estándar (Helvetica soporta caracteres latinos básicos)
     pdf.set_font("helvetica", "B", 16)
     
     # Título
-    pdf.set_text_color(114, 47, 55) 
-    pdf.cell(190, 10, "CATÁLOGO DE VINOS SELECCIONADOS - GLOP 2026", ln=True, align='C')
+    pdf.set_text_color(114, 47, 55) # Granate Glop
+    pdf.cell(190, 10, "CATÁLOGO DE VINOS SELECCIONADOS - GLOP 2026", new_x="LMARGIN", new_y="NEXT", align='C')
     pdf.ln(10)
     
-    pdf.set_font("helvetica", "", 10)
-    pdf.set_text_color(0, 0, 0)
-    
     for _, row in vinos_seleccionados.iterrows():
-        # Encabezado del vino (UTF-8 activado por defecto en fpdf2)
+        # Encabezado del vino
         pdf.set_font("helvetica", "B", 12)
-        pdf.cell(190, 8, f"{row['VINO']}", ln=True, border='B')
+        pdf.set_text_color(114, 47, 55)
+        # Usamos nombre de columna exacto como en tu Excel
+        nombre_vino = str(row.get('VINO', 'Vino sin nombre'))
+        pdf.cell(190, 8, nombre_vino, new_x="LMARGIN", new_y="NEXT", border='B')
         
         # Detalles
         pdf.set_font("helvetica", "", 10)
-        pdf.cell(95, 7, f"Bodega: {row['BODEGA']}", ln=False)
-        pdf.cell(95, 7, f"Origen: {row['ORIGEN']}", ln=True)
+        pdf.set_text_color(0, 0, 0)
         
-        pdf.cell(95, 7, f"Uvas: {row['UVAS']}", ln=False)
+        pdf.cell(95, 7, f"Bodega: {row.get('BODEGA', 'N/A')}", new_x="RIGHT", new_y="TOP")
+        pdf.cell(95, 7, f"Origen: {row.get('ORIGEN', 'N/A')}", new_x="LMARGIN", new_y="NEXT")
         
-        # Precio - Reemplazamos el símbolo € por 'Euros' si da problemas de fuente
+        pdf.cell(95, 7, f"Uvas: {row.get('UVAS', 'N/A')}", new_x="RIGHT", new_y="TOP")
+        
+        # Buscar precio Horeca
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
         precio_val = row[c_horeca] if c_horeca else "N/A"
         
         pdf.set_font("helvetica", "B", 10)
-        pdf.cell(95, 7, f"Precio Horeca: {precio_val} Euros", ln=True)
+        pdf.cell(95, 7, f"Precio Horeca: {precio_val} Euros", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(5)
     
-    # En fpdf2, output() ya devuelve los bytes directamente si no se pone nombre de archivo
-    return pdf.output()
+    # IMPORTANTE: Para fpdf2 en Streamlit, generamos los bytes
+    return bytes(pdf.output())
 df = load_data()
 
 # --- ESTADO DE SELECCIÓN ---
