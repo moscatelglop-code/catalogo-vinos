@@ -1,393 +1,200 @@
 import streamlit as st
-
 import pandas as pd
-
 from fpdf import FPDF
-
 import io
-
 import requests
-
+import os
 from tempfile import NamedTemporaryFile
 
-
-
+# 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Catálogo Vinos GLOP 2026", layout="wide")
 
-
-
-# --- ESTILOS CSS ---
-
+# Estilos personalizados para mejorar la visualización de las tarjetas
 st.markdown("""
-
     <style>
-
     [data-testid="stImage"] img {
-
         height: 250px;
-
         object-fit: contain;
-
         background-color: #ffffff;
-
         border-radius: 10px;
-
     }
-
     .stButton>button { width: 100%; border-radius: 10px; }
-
-    .selected-card {
-
-        border: 2px solid #722f37;
-
-        padding: 10px;
-
-        border-radius: 10px;
-
-        background-color: #fff4f5;
-
-    }
-
+    div[data-testid="stExpander"] { border: none !important; box-shadow: none !important; }
     </style>
-
     """, unsafe_allow_html=True)
 
-
-
+# 2. CARGA DE DATOS
 @st.cache_data
-
 def load_data():
-
     try:
-
+        # Intenta leer el archivo Excel
         df = pd.read_excel('CATALOGO 2026 GLOP.xlsx', engine='openpyxl')
-
         df = df.dropna(how='all', axis=1).dropna(how='all', axis=0)
-
+        # Normalizar nombres de columnas a mayúsculas y sin espacios
         df.columns = [str(c).strip().upper() for c in df.columns]
-
+        # Limpiar espacios en los datos
         df = df.map(lambda x: str(x).strip() if pd.notnull(x) else "")
-
         return df
-
     except Exception as e:
-
         st.error(f"Error al abrir el archivo Excel: {e}")
-
         return pd.DataFrame()
 
+# 3. FUNCIÓN: VENTANA EMERGENTE (MODAL)
+@st.dialog("Ficha Técnica")
+def mostrar_detalles(row):
+    col_img, col_info = st.columns([1, 1.2])
+    
+    with col_img:
+        url = row.get('URL', "")
+        img_url = url if str(url).startswith("http") else "https://via.placeholder.com/400x600?text=Sin+Imagen"
+        st.image(img_url, use_container_width=True)
+    
+    with col_info:
+        st.subheader(row['VINO'])
+        st.write(f"**Bodega:** {row.get('BODEGA', 'N/A')}")
+        st.write(f"**Origen:** {row.get('ORIGEN', 'N/A')}")
+        st.write(f"**Añada:** {row.get('AÑADA', row.get('AÑO', 'N/A'))}")
+        
+        # Lógica dinámica para encontrar la columna de precio HORECA
+        c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
+        if c_horeca:
+            st.metric(label="Precio Tarifa Horeca", value=f"{row[c_horeca]} €")
+        
+        st.divider()
+        st.caption("Información extraída del catálogo oficial GLOP 2026. Los precios no incluyen IVA.")
 
-
-# --- FUNCIÓN GENERAR PDF ---
-
+# 4. FUNCIÓN: GENERAR PDF
 def generar_pdf(vinos_seleccionados):
-
     pdf = FPDF()
-
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-
     
-
-    # Título
-
-    pdf.set_font("helvetica", "B", 16)
-
+    # Título del documento
+    pdf.set_font("Helvetica", "B", 16)
     pdf.set_text_color(114, 47, 55) 
-
     pdf.cell(190, 10, "CATALOGO DE VINOS SELECCIONADOS - GLOP 2026", ln=1, align='C')
-
     pdf.ln(10)
-
     
-
-    # Cabecera para peticiones (evita bloqueos)
-
     headers = {'User-Agent': 'Mozilla/5.0'}
 
-
-
     for _, row in vinos_seleccionados.iterrows():
-
         y_inicial = pdf.get_y()
-
         url_img = str(row.get('URL', ""))
+        tmp_path = None
 
-        
-
-        img_mostrada = False
-
-        img_h_final = 0 # Guardaremos el alto calculado
-
-        
-
-        # --- INTENTO DE DESCARGA DE IMAGEN ---
-
+        # Gestión de imagen en el PDF
         if url_img.startswith("http"):
-
             try:
-
-                # Descargamos la imagen
-
-                res = requests.get(url_img, headers=headers, timeout=10)
-
+                res = requests.get(url_img, headers=headers, timeout=5)
                 if res.status_code == 200:
-
                     with NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-
                         tmp.write(res.content)
-
                         tmp_path = tmp.name
+                    pdf.image(tmp_path, x=10, y=y_inicial, h=25)
+            except:
+                pass
+            finally:
+                if tmp_path and os.path.exists(tmp_path):
+                    os.remove(tmp_path)
 
-                    
-
-                    # --- ESCALADO PROPORCIONAL ---
-
-                    # TRUCO: Definimos un alto fijo (20mm) y ancho=0.
-
-                    # FPDF calculará el alto proporcional automáticamente.
-
-                    info = pdf.image(tmp_path, x=10, y=y_inicial, w=0, h=20)
-
-                    
-
-                    # Obtenemos el alto que FPDF calculó para usarlo en el espaciado
-
-                    img_h_final = info.h
-
-                    img_mostrada = True
-
-            except Exception as e:
-
-                print(f"Error con imagen de {url_img}: {e}")
-
-
-
-        # --- CONTENIDO DE TEXTO ---
-
-        # El texto siempre alineado en x=35 para que se vea ordenado
-
-        pdf.set_xy(35, y_inicial)
-
-        
-
-        # Nombre del Vino
-
-        pdf.set_font("helvetica", "B", 12)
-
+        # Información del vino
+        pdf.set_xy(45, y_inicial)
+        pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(114, 47, 55)
-
-        nombre = str(row.get('VINO', 'Vino')).encode('latin-1', 'ignore').decode('latin-1')
-
+        nombre = str(row.get('VINO', 'Vino')).encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(0, 7, nombre, ln=1)
-
         
-
-        # Detalles (Añada, Bodega)
-
-        pdf.set_x(35)
-
-        pdf.set_font("helvetica", "", 10)
-
+        pdf.set_x(45)
+        pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(0, 0, 0)
-
-        
-
-        bodega = str(row.get('BODEGA', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
-
-        anada = str(row.get('AÑADA', row.get('AÑO', 'N/A'))).encode('latin-1', 'ignore').decode('latin-1')
-
-        origen = str(row.get('ORIGEN', 'N/A')).encode('latin-1', 'ignore').decode('latin-1')
-
-        
-
+        bodega = str(row.get('BODEGA', 'N/A')).encode('latin-1', 'replace').decode('latin-1')
+        anada = str(row.get('AÑADA', row.get('AÑO', 'N/A'))).encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(0, 6, f"Bodega: {bodega} | Añada: {anada}", ln=1)
 
-        pdf.set_x(35)
-
-        pdf.cell(0, 6, f"Origen: {origen}", ln=1)
-
+        # Línea divisoria
+        y_final = max(pdf.get_y(), y_inicial + 28)
+        pdf.set_y(y_final)
+        pdf.line(10, y_final, 200, y_final)
+        pdf.ln(5)
         
-
-        # Precio
-
-        pdf.set_x(35)
-
-        c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
-
-        precio = f"{row[c_horeca]} EUR" if c_horeca else "Consultar"
-
-        pdf.set_font("helvetica", "B", 10)
-
-        pdf.cell(0, 6, f"Precio Horeca: {precio}", ln=1)
-
-
-
-        # --- ESPACIADO DINÁMICO ---
-
-        # Calculamos dónde termina el vino actual basándonos en:
-
-        # El final del texto (pdf.get_y()) O el final de la imagen (y_inicial + alto_imagen).
-
-        
-
-        # Le damos un mínimo de 25mm de alto por vino para que no queden muy pegados.
-
-        fin_de_texto = pdf.get_y()
-
-        fin_de_imagen = y_inicial + img_h_final
-
-        
-
-        proximo_y = max(fin_de_texto, fin_de_imagen, y_inicial + 25)
-
-        
-
-        pdf.set_y(proximo_y + 3) # Margen de 3mm antes de la línea
-
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y()) # Línea divisoria
-
-        pdf.ln(5) # Margen de 5mm después de la línea
-
-
-
-        # Salto de página automático si estamos muy abajo
-
         if pdf.get_y() > 260:
-
             pdf.add_page()
 
-
-
+    # Retorno de bytes optimizado para fpdf2
     return bytes(pdf.output())
 
+# 5. LÓGICA DE LA APLICACIÓN
 df = load_data()
 
-
-
-# --- ESTADO DE SELECCIÓN ---
-
+# Inicializar el carrito de selección si no existe
 if 'seleccionados' not in st.session_state:
-
     st.session_state.seleccionados = []
 
-
-
-# --- SIDEBAR ---
-
+# --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-
-    try:
-
-        st.image("LOGO GLOP DYD.jpeg", use_container_width=True)
-
-    except:
-
-        st.title("🍷 GLOP DYD")
-
-    
-
+    st.title("🍷 GLOP DYD")
     st.divider()
-
-    busqueda = st.text_input("🔍 Buscar vino o bodega...")
-
+    busqueda = st.text_input("🔍 Buscar por vino o bodega")
     
-
-    # Botón de exportar
-
     st.subheader("📄 Exportación")
-
     if st.session_state.seleccionados:
-
+        st.write(f"Has seleccionado **{len(st.session_state.seleccionados)}** vinos.")
+        
         df_export = df[df.index.isin(st.session_state.seleccionados)]
-
-        pdf_data = generar_pdf(df_export)
-
+        pdf_bytes = generar_pdf(df_export)
+        
         st.download_button(
-
-            label="📥 Descargar PDF Seleccionados",
-
-            data=pdf_data,
-
-            file_name="catalogo_seleccionado_glop.pdf",
-
+            label="📥 Descargar PDF",
+            data=pdf_bytes,
+            file_name="catalogo_seleccion_glop.pdf",
             mime="application/pdf",
-
             type="primary"
-
         )
-
+        
         if st.button("Limpiar selección"):
-
             st.session_state.seleccionados = []
-
             st.rerun()
-
     else:
+        st.info("Selecciona vinos en el catálogo para generar un PDF.")
 
-        st.info("Selecciona vinos en el catálogo para exportar.")
-
-
-
-# --- CUADRÍCULA ---
-
+# --- CUERPO PRINCIPAL (CATÁLOGO) ---
 if not df.empty:
-
+    # Filtrado de búsqueda
     df_f = df.copy()
-
     if busqueda:
-
         df_f = df_f[df_f['VINO'].str.contains(busqueda, case=False) | 
-
                     df_f['BODEGA'].str.contains(busqueda, case=False)]
 
-
-
-    st.title("🍷 Catálogo Digital")
-
+    st.title("Catálogo Digital 2026")
     
-
+    # Crear cuadrícula de 4 columnas
     cols = st.columns(4)
-
+    
     for i, (idx, row) in enumerate(df_f.iterrows()):
-
         with cols[i % 4]:
+            with st.container(border=True):
+                # Checkbox de selección rápida
+                is_selected = idx in st.session_state.seleccionados
+                seleccion = st.checkbox("Seleccionar", key=f"sel_{idx}", value=is_selected)
+                
+                # Actualizar estado de selección
+                if seleccion and idx not in st.session_state.seleccionados:
+                    st.session_state.seleccionados.append(idx)
+                    st.rerun()
+                elif not seleccion and idx in st.session_state.seleccionados:
+                    st.session_state.seleccionados.remove(idx)
+                    st.rerun()
 
-            # Checkbox de selección
-
-            seleccionado = st.checkbox("Seleccionar", key=f"sel_{idx}", 
-
-                                     value=idx in st.session_state.seleccionados)
-
-            
-
-            if seleccionado and idx not in st.session_state.seleccionados:
-
-                st.session_state.seleccionados.append(idx)
-
-            elif not seleccionado and idx in st.session_state.seleccionados:
-
-                st.session_state.seleccionados.remove(idx)
-
-
-
-            url = row.get('URL', "")
-
-            img_url = url if str(url).startswith("http") else "https://via.placeholder.com/200x300?text=Vino"
-
-            st.image(img_url, use_container_width=True)
-
-            
-
-            st.markdown(f"**{row['VINO']}**")
-
-            st.caption(f"{row['BODEGA']}")
-
-            
-
-            # Mostrar precio rápido si existe
-
-            c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
-
-            if c_horeca:
-
-                st.write(f"**{row[c_horeca]}€**")
+                # Imagen del producto
+                img_path = row.get('URL', "https://via.placeholder.com/200x300?text=Vino")
+                st.image(img_path, use_container_width=True)
+                
+                # Nombre y bodega (truncado para estética)
+                st.markdown(f"**{row['VINO'][:25]}...**" if len(row['VINO']) > 28 else f"**{row['VINO']}**")
+                st.caption(f"{row['BODEGA']}")
+                
+                # Botón para abrir la ventana de detalles
+                if st.button("🔍 Ver detalles", key=f"btn_{idx}"):
+                    mostrar_detalles(row)
+else:
+    st.warning("No se encontró el archivo Excel o está vacío.")
