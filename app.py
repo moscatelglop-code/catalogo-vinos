@@ -70,9 +70,9 @@ def generar_pdf(vinos_seleccionados):
                         tmp_path = tmp.name
                     
                     # --- ESCALADO PROPORCIONAL ---
-                    # TRUCO: Definimos un ancho fijo (15mm) y alto=0.
+                    # TRUCO: Definimos un alto fijo (20mm) y ancho=0.
                     # FPDF calculará el alto proporcional automáticamente.
-                    info = pdf.image(tmp_path, x=10, y=y_inicial, w=15, h=0)
+                    info = pdf.image(tmp_path, x=10, y=y_inicial, w=0, h=20)
                     
                     # Obtenemos el alto que FPDF calculó para usarlo en el espaciado
                     img_h_final = info.h
