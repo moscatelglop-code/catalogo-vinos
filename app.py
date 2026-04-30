@@ -124,6 +124,7 @@ def generar_pdf(vinos_seleccionados):
 
 # 5. LÓGICA PRINCIPAL DE LA APP
 df = load_data()
+st.write("Columnas detectadas:", df.columns.tolist()) # <-- AÑADE ESTO
 
 if 'seleccionados' not in st.session_state:
     st.session_state.seleccionados = []
