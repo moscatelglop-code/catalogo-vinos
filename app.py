@@ -71,17 +71,17 @@ def mostrar_detalles(row):
         st.caption("Información válida para temporada 2026.")
 
 # 4. FUNCIÓN GENERAR PDF
+import io  # Asegúrate de tener este import al principio del archivo
+
 def generar_pdf(vinos_seleccionados):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     
     def clean_txt(text):
-        # Limpieza para evitar errores de caracteres especiales en Latin-1
         return str(text).encode('latin-1', 'replace').decode('latin-1')
 
     for _, row in vinos_seleccionados.iterrows():
         pdf.add_page()
-        # --- ENCABEZADO ---
         pdf.set_font("Helvetica", "B", 16)
         pdf.set_text_color(114, 47, 55)
         pdf.cell(190, 10, clean_txt("GLOP - CATÁLOGO SELECCIONADO 2026"), ln=1, align='C')
@@ -90,7 +90,6 @@ def generar_pdf(vinos_seleccionados):
         y_img = pdf.get_y()
         url_img = str(row.get('URL', ""))
         
-        # --- IMAGEN ---
         if url_img.startswith("http"):
             try:
                 res = requests.get(url_img, timeout=5)
@@ -103,27 +102,20 @@ def generar_pdf(vinos_seleccionados):
             except:
                 pdf.rect(15, y_img, 40, 60)
 
-        # --- INFORMACIÓN ---
         pdf.set_xy(70, y_img)
         pdf.set_font("Helvetica", "B", 14)
         pdf.cell(0, 8, clean_txt(row.get('VINO', 'Vino')), ln=1)
-        
         pdf.set_x(70)
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(100, 100, 100)
         pdf.cell(0, 7, clean_txt(row.get('BODEGA', 'N/A')), ln=1)
-        
         pdf.ln(5)
         pdf.set_x(70)
         pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(0, 0, 0)
         
-        info_tecnica = (
-            f"Origen: {row.get('ORIGEN', 'N/A')}\n"
-            f"Uvas: {row.get('UVAS', 'N/A')}\n"
-            f"Añada: {row.get('AÑADA', row.get('AÑO', 'N/A'))}"
-        )
-        pdf.multi_cell(0, 6, clean_txt(info_tecnica))
+        info = f"Origen: {row.get('ORIGEN', 'N/A')}\nUvas: {row.get('UVAS', 'N/A')}\nAñada: {row.get('AÑADA', row.get('AÑO', 'N/A'))}"
+        pdf.multi_cell(0, 6, clean_txt(info))
         
         pdf.ln(5)
         pdf.set_x(70)
@@ -132,9 +124,12 @@ def generar_pdf(vinos_seleccionados):
         precio = f"{row[c_horeca]} EUR" if c_horeca else "Consultar"
         pdf.cell(0, 8, clean_txt(f"Precio Horeca: {precio}"), ln=1)
 
-    # --- CAMBIO CLAVE AQUÍ ---
-    # En lugar de dest='S', generamos los bytes directamente
-    return pdf.output()
+    # --- LA PARTE CRÍTICA ---
+    # Obtenemos el output como bytes y lo metemos en un buffer compatible con Streamlit
+    pdf_output = pdf.output() 
+    if isinstance(pdf_output, str): # Para versiones viejas de fpdf
+        return pdf_output.encode('latin-1')
+    return bytes(pdf_output) # Para fpdf2
 
 # 5. LÓGICA DE LA APP
 df = load_data()
