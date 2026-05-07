@@ -192,7 +192,7 @@ def load_data():
 
         return df
 
-        except Exception as e:
+    except Exception as e:
 
     st.error(f"Error al cargar el archivo Excel: {e}")
 
