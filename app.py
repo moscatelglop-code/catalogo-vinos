@@ -123,7 +123,7 @@ def generar_pdf(vinos_seleccionados):
     return bytes(pdf.output())
 
 F
-Conversación con Gemini
+
 import streamlit as st
 
 import pandas as pd
