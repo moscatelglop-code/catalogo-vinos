@@ -228,122 +228,67 @@ def mostrar_detalles(row):
 
 
 # 4. FUNCIÓN GENERAR PDF
-
 def generar_pdf(vinos_seleccionados):
-
-pdf = FPDF()
-
-pdf.set_auto_page_break(auto=True, margin=15)
-
-pdf.add_page()
-
-
-pdf.set_font("Helvetica", "B", 16)
-
-pdf.set_text_color(114, 47, 55)
-
-pdf.cell(190, 10, "CATALOGO DE VINOS SELECCIONADOS - GLOP 2026", ln=1, align='C')
-
-pdf.ln(10)
-
-
-headers = {'User-Agent': 'Mozilla/5.0'}
-
-
-
-for _, row in vinos_seleccionados.iterrows():
-
-y_inicial = pdf.get_y()
-
-url_img = str(row.get('URL', ""))
-
-tmp_path = None
-
-
-
-if url_img.startswith("http"):
-
-try:
-
-res = requests.get(url_img, headers=headers, timeout=5)
-
-if res.status_code == 200:
-
-with NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-
-tmp.write(res.content)
-
-tmp_path = tmp.name
-
-pdf.image(tmp_path, x=10, y=y_inicial, h=28)
-
-except: pass
-
-finally:
-
-if tmp_path and os.path.exists(tmp_path): os.remove(tmp_path)
-
-
-
-pdf.set_xy(45, y_inicial)
-
-pdf.set_font("Helvetica", "B", 12)
-
-pdf.set_text_color(114, 47, 55)
-
-nombre = str(row.get('VINO', 'Vino')).encode('latin-1', 'replace').decode('latin-1')
-
-pdf.cell(0, 7, nombre, ln=1)
-
-
-pdf.set_x(45)
-
-pdf.set_font("Helvetica", "", 10)
-
-pdf.set_text_color(0, 0, 0)
-
-bodega = str(row.get('BODEGA', 'N/A')).encode('latin-1', 'replace').decode('latin-1')
-
-pdf.cell(0, 6, f"Bodega: {bodega}", ln=1)
-
-
-pdf.set_x(45)
-
-origen = str(row.get('ORIGEN', 'N/A')).encode('latin-1', 'replace').decode('latin-1')
-
-uvas = str(row.get('UVAS', 'N/A')).encode('latin-1', 'replace').decode('latin-1')
-
-pdf.cell(0, 6, f"Origen: {origen} | Uvas: {uvas}", ln=1)
-
-
-pdf.set_x(45)
-
-pdf.set_font("Helvetica", "B", 10)
-
-c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
-
-precio = f"{row[c_horeca]} EUR" if c_horeca else "Consultar"
-
-pdf.cell(0, 6, f"Precio Horeca: {precio}", ln=1)
-
-
-
-y_final = max(pdf.get_y(), y_inicial + 32)
-
-pdf.set_y(y_final)
-
-pdf.line(10, y_final, 200, y_final)
-
-pdf.ln(5)
-
-
-if pdf.get_y() > 250: pdf.add_page()
-
-
-
-return bytes(pdf.output())
-
-
+    # Todo este bloque DEBE tener 4 espacios de sangría
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_text_color(114, 47, 55) 
+    pdf.cell(190, 10, "CATALOGO DE VINOS SELECCIONADOS - GLOP 2026", ln=1, align='C')
+    pdf.ln(10)
+    
+    headers = {'User-Agent': 'Mozilla/5.0'}
+
+    for _, row in vinos_seleccionados.iterrows():
+        y_inicial = pdf.get_y()
+        url_img = str(row.get('URL', ""))
+        tmp_path = None
+
+        if url_img.startswith("http"):
+            try:
+                res = requests.get(url_img, headers=headers, timeout=5)
+                if res.status_code == 200:
+                    with NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                        tmp.write(res.content)
+                        tmp_path = tmp.name
+                    pdf.image(tmp_path, x=10, y=y_inicial, h=28)
+            except: pass
+            finally:
+                if tmp_path and os.path.exists(tmp_path): os.remove(tmp_path)
+
+        pdf.set_xy(45, y_inicial)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_text_color(114, 47, 55)
+        nombre = str(row.get('VINO', 'Vino')).encode('latin-1', 'replace').decode('latin-1')
+        pdf.cell(0, 7, nombre, ln=1)
+        
+        pdf.set_x(45)
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_text_color(0, 0, 0)
+        bodega = str(row.get('BODEGA', 'N/A')).encode('latin-1', 'replace').decode('latin-1')
+        pdf.cell(0, 6, f"Bodega: {bodega}", ln=1)
+        
+        pdf.set_x(45)
+        origen = str(row.get('ORIGEN', 'N/A')).encode('latin-1', 'replace').decode('latin-1')
+        uvas = str(row.get('UVAS', 'N/A')).encode('latin-1', 'replace').decode('latin-1')
+        pdf.cell(0, 6, f"Origen: {origen} | Uvas: {uvas}", ln=1)
+        
+        pdf.set_x(45)
+        pdf.set_font("Helvetica", "B", 10)
+        c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
+        precio = f"{row[c_horeca]} EUR" if c_horeca else "Consultar"
+        pdf.cell(0, 6, f"Precio Horeca: {precio}", ln=1)
+
+        y_final = max(pdf.get_y(), y_inicial + 32)
+        pdf.set_y(y_final)
+        pdf.line(10, y_final, 200, y_final)
+        pdf.ln(5)
+        
+        if pdf.get_y() > 250: pdf.add_page()
+
+    return bytes(pdf.output())
 
 # 5. LÓGICA PRINCIPAL DE LA APP
 
