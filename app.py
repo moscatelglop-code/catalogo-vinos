@@ -725,7 +725,7 @@ if not df.empty:
                     mostrar_detalles(row)
 else:
     st.warning("⚠️ No se encontró el archivo 'CATALOGO 2026 GLOP.xlsx'. Por favor, súbelo al servidor.")
-¿Por qué estos cambios?
+
 st.session_state.seleccionados = set(): Cambiar la lista por un conjunto (set) hace que verificar si un vino ya está seleccionado sea instantáneo, incluso si tienes miles de vinos.
 
 pdf.output(dest='S'): Esta forma de generar el PDF es más directa para enviarlo como descarga en Streamlit sin tener que manejar archivos temporales para el PDF en sí.
