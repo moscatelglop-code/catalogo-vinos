@@ -180,7 +180,7 @@ border-radius: 10px;
 
 def load_data():
 
-try:
+    try:
 
 df = pd.read_excel('CATALOGO 2026 GLOP.xlsx', engine='openpyxl')
 
