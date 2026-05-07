@@ -291,152 +291,15 @@ def generar_pdf(vinos_seleccionados):
     return bytes(pdf.output())
 
 # 5. LÓGICA PRINCIPAL DE LA APP
-
 df = load_data()
 
-
-
+# Asegúrate de que estas dos líneas se vean así:
 if 'seleccionados' not in st.session_state:
-
-st.session_state.seleccionados = []
-
-
+    st.session_state.seleccionados = []  # <--- Esta línea debe tener 4 espacios de sangría
 
 # --- BARRA LATERAL (SIDEBAR) CON LOGO ---
-
 with st.sidebar:
-
-# AÑADIMOS EL LOGO AQUÍ
-
-try:
-
-st.image("LOGO GLOP DYD.jpeg", use_container_width=True)
-
-except:
-
-st.error("No se encontró el archivo de logo 'LOGO GLOP DYD.jpeg'")
-
-
-st.title("Catálogo Vinos")
-
-st.divider()
-
-busqueda = st.text_input("🔍 Buscar por vino o bodega...")
-
-
-if st.session_state.seleccionados:
-
-st.subheader("Selección actual")
-
-st.write(f"Vinos seleccionados: {len(st.session_state.seleccionados)}")
-
-
-df_export = df[df.index.isin(st.session_state.seleccionados)]
-
-pdf_data = generar_pdf(df_export)
-
-
-st.download_button(
-
-label="📥 Descargar Catálogo PDF",
-
-data=pdf_data,
-
-file_name="seleccion_glop_2026.pdf",
-
-mime="application/pdf",
-
-type="primary"
-
-)
-
-
-if st.button("Limpiar selección"):
-
-st.session_state.seleccionados = []
-
-st.rerun()
-
-else:
-
-st.info("Selecciona vinos para generar el PDF.")
-
-
-
-# --- CUERPO DEL CATÁLOGO ---
-
-if not df.empty:
-
-df_f = df.copy()
-
-if busqueda:
-
-df_f = df_f[df_f['VINO'].str.contains(busqueda, case=False) |
-
-df_f['BODEGA'].str.contains(busqueda, case=False)]
-
-
-
-st.title("Catálogo Digital 2026")
-
-
-cols = st.columns(4)
-
-for i, (idx, row) in enumerate(df_f.iterrows()):
-
-with cols[i % 4]:
-
-with st.container(border=True):
-
-is_selected = idx in st.session_state.seleccionados
-
-if st.checkbox("Seleccionar", key=f"sel_{idx}", value=is_selected):
-
-if idx not in st.session_state.seleccionados:
-
-st.session_state.seleccionados.append(idx)
-
-st.rerun()
-
-elif is_selected:
-
-st.session_state.seleccionados.remove(idx)
-
-st.rerun()
-
-
-
-img_url = row.get('URL', "https://via.placeholder.com/200x300")
-
-st.image(img_url, use_container_width=True)
-
-
-st.markdown(f"**{row['VINO']}**")
-
-st.caption(f"{row['BODEGA']}")
-
-
-if st.button("🔍 Ver detalles", key=f"btn_{idx}"):
-
-mostrar_detalles(row)
-
-else:
-
-st.error("Por favor, asegúrate de que el archivo 'CATALOGO 2026 GLOP.xlsx' esté en la carpeta raíz.")
-
-Este es un código sólido y bien estructurado para una aplicación de catálogo en Streamlit. Tienes una lógica de filtrado eficiente y la generación de PDF mediante fpdf2 (aunque usas fpdf, la sintaxis es compatible) está bien planteada.
-
-He realizado algunas optimizaciones clave para mejorar la estabilidad, el manejo de memoria al generar el PDF y la experiencia de usuario (UX):
-
-Mejoras implementadas:
-Manejo de Errores en PDF: Se añadió un bloque try-except más robusto para la descarga de imágenes.
-
-Optimización de st.rerun(): En Streamlit, los st.rerun() dentro de bucles pueden causar parpadeos o bucles infinitos. He ajustado la lógica de selección para que sea más fluida.
-
-Codificación de Texto: Se mejoró la limpieza de caracteres especiales para evitar errores de codificación Latin-1 al generar el PDF (común con tildes y ñ).
-
-Layout de Tarjetas: Se añadió un pequeño ajuste de CSS para que el texto de los nombres de los vinos no rompa el diseño de la cuadrícula.
-
+    # Todo lo que sigue dentro del "with" también debe estar indentado...
 Python
 import streamlit as st
 import pandas as pd
