@@ -76,17 +76,21 @@ def generar_pdf(vinos_seleccionados):
     pdf.set_auto_page_break(auto=True, margin=15)
     
     def clean_txt(text):
+        # Limpieza para evitar errores de caracteres especiales en Latin-1
         return str(text).encode('latin-1', 'replace').decode('latin-1')
 
     for _, row in vinos_seleccionados.iterrows():
         pdf.add_page()
+        # --- ENCABEZADO ---
         pdf.set_font("Helvetica", "B", 16)
         pdf.set_text_color(114, 47, 55)
-        pdf.cell(190, 10, "GLOP - CATALOGO SELECCIONADO 2026", ln=1, align='C')
+        pdf.cell(190, 10, clean_txt("GLOP - CATÁLOGO SELECCIONADO 2026"), ln=1, align='C')
         pdf.ln(10)
 
         y_img = pdf.get_y()
         url_img = str(row.get('URL', ""))
+        
+        # --- IMAGEN ---
         if url_img.startswith("http"):
             try:
                 res = requests.get(url_img, timeout=5)
@@ -99,31 +103,38 @@ def generar_pdf(vinos_seleccionados):
             except:
                 pdf.rect(15, y_img, 40, 60)
 
+        # --- INFORMACIÓN ---
         pdf.set_xy(70, y_img)
         pdf.set_font("Helvetica", "B", 14)
         pdf.cell(0, 8, clean_txt(row.get('VINO', 'Vino')), ln=1)
+        
         pdf.set_x(70)
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(100, 100, 100)
         pdf.cell(0, 7, clean_txt(row.get('BODEGA', 'N/A')), ln=1)
+        
         pdf.ln(5)
         pdf.set_x(70)
         pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(0, 0, 0)
-        pdf.multi_cell(0, 6, f"Origen: {clean_txt(row.get('ORIGEN', 'N/A'))}\n"
-                             f"Uvas: {clean_txt(row.get('UVAS', 'N/A'))}\n"
-                             f"Añada: {clean_txt(row.get('AÑADA', row.get('AÑO', 'N/A')))}")
+        
+        info_tecnica = (
+            f"Origen: {row.get('ORIGEN', 'N/A')}\n"
+            f"Uvas: {row.get('UVAS', 'N/A')}\n"
+            f"Añada: {row.get('AÑADA', row.get('AÑO', 'N/A'))}"
+        )
+        pdf.multi_cell(0, 6, clean_txt(info_tecnica))
+        
         pdf.ln(5)
         pdf.set_x(70)
         pdf.set_font("Helvetica", "B", 12)
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
         precio = f"{row[c_horeca]} EUR" if c_horeca else "Consultar"
-        pdf.cell(0, 8, f"Precio Horeca: {precio}", ln=1)
-        pdf.set_y(-25)
-        pdf.set_font("Helvetica", "I", 8)
-        pdf.cell(0, 10, "Generado por Sistema GLOP D&D 2026", align='C')
+        pdf.cell(0, 8, clean_txt(f"Precio Horeca: {precio}"), ln=1)
 
-    return pdf.output(dest='S').encode('latin-1')
+    # --- CAMBIO CLAVE AQUÍ ---
+    # En lugar de dest='S', generamos los bytes directamente
+    return pdf.output()
 
 # 5. LÓGICA DE LA APP
 df = load_data()
