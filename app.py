@@ -184,15 +184,15 @@ def load_data():
 
         df = pd.read_excel('CATALOGO 2026 GLOP.xlsx', engine='openpyxl')
 
-            df = df.dropna(how='all', axis=1).dropna(how='all', axis=0)
+        df = df.dropna(how='all', axis=1).dropna(how='all', axis=0)
 
-                df.columns = [str(c).strip().upper() for c in df.columns]
+        df.columns = [str(c).strip().upper() for c in df.columns]
 
-                    df = df.map(lambda x: str(x).strip() if pd.notnull(x) else "")
+        df = df.map(lambda x: str(x).strip() if pd.notnull(x) else "")
 
-                    return df
+        return df
 
-                    except Exception as e:
+        except Exception as e:
 
     st.error(f"Error al cargar el archivo Excel: {e}")
 
