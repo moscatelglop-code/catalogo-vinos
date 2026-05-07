@@ -201,46 +201,29 @@ def load_data():
 
 
 # 3. VENTANA EMERGENTE (DETALLES COMPLETOS)
-
 @st.dialog("Ficha Técnica del Producto")
-
 def mostrar_detalles(row):
-
-col_img, col_info = st.columns([1, 1.2])
-
-
-with col_img:
-
-url = row.get('URL', "")
-
-img_url = url if str(url).startswith("http") else "https://via.placeholder.com/400x600?text=Sin+Imagen"
-
-st.image(img_url, use_container_width=True)
-
-
-with col_info:
-
-st.subheader(row['VINO'])
-
-st.write(f"**Bodega:** {row.get('BODEGA', 'N/A')}")
-
-st.write(f"**Origen:** {row.get('ORIGEN', 'N/A')}")
-
-st.write(f"**Uvas:** {row.get('UVAS', 'N/A')}")
-
-st.write(f"**Añada:** {row.get('AÑADA', row.get('AÑO', 'N/A'))}")
-
-
-c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
-
-if c_horeca:
-
-st.metric(label="Precio Tarifa Horeca", value=f"{row[c_horeca]} €")
-
-
-st.divider()
-
-st.caption("Información técnica para uso comercial. Precios válidos para 2026.")
+    # Todo este bloque debe tener 4 espacios de sangría
+    col_img, col_info = st.columns([1, 1.2])
+    
+    with col_img:
+        url = row.get('URL', "")
+        img_url = url if str(url).startswith("http") else "https://via.placeholder.com/400x600?text=Sin+Imagen"
+        st.image(img_url, use_container_width=True)
+    
+    with col_info:
+        st.subheader(row['VINO'])
+        st.write(f"**Bodega:** {row.get('BODEGA', 'N/A')}")
+        st.write(f"**Origen:** {row.get('ORIGEN', 'N/A')}")
+        st.write(f"**Uvas:** {row.get('UVAS', 'N/A')}")
+        st.write(f"**Añada:** {row.get('AÑADA', row.get('AÑO', 'N/A'))}")
+        
+        c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
+        if c_horeca:
+            st.metric(label="Precio Tarifa Horeca", value=f"{row[c_horeca]} €")
+        
+        st.divider()
+        st.caption("Información técnica para uso comercial. Precios válidos para 2026.")
 
 
 
