@@ -730,7 +730,7 @@ st.session_state.seleccionados = set(): Cambiar la lista por un conjunto (set) h
 
 pdf.output(dest='S'): Esta forma de generar el PDF es más directa para enviarlo como descarga en Streamlit sin tener que manejar archivos temporales para el PDF en sí.
 
-Limpieza de caracteres: FPDF suele dar error Latin-1 codec cant encode character... con símbolos como el euro (€) o comillas especiales. La función clean_txt previene que la app se caiga al generar el PDF.
+Limpieza de caracteres: FPDF suele dar error Latin-1 codec cant encode character... con símbolos como el euro o comillas especiales. La función clean_txt previene que la app se caiga al generar el PDF.
 
 multi_cell en el PDF: Si la información de las uvas u origen es muy larga, cell la cortaría. multi_cell permite que el texto salte de línea automáticamente dentro del documento.
 
