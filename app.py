@@ -141,7 +141,14 @@ def generar_pdf(vinos_seleccionados):
         pdf.line(15, pdf.get_y(), 195, pdf.get_y())
         pdf.ln(5)
 
-    return pdf.output()
+    # Al final, obtenemos los bytes
+    pdf_output = pdf.output()
+    
+    # Verificación de seguridad: si es string (viejas versiones), codificar. 
+    # Si ya son bytes (fpdf2), se devuelven tal cual.
+    if isinstance(pdf_output, str):
+        return pdf_output.encode('latin-1')
+    return bytes(pdf_output)
 
 # 5. LÓGICA DE LA APP
 df = load_data()
