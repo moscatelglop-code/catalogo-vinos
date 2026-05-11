@@ -4,11 +4,12 @@ from fpdf import FPDF
 import requests
 import os
 from tempfile import NamedTemporaryFile
+import io
 
 # 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Catálogo Vinos GLOP 2026", layout="wide", page_icon="🍷")
 
-# Estilos CSS para tarjetas uniformes y diseño profesional
+# Estilos CSS
 st.markdown("""
     <style>
     [data-testid="stImage"] img {
@@ -19,7 +20,6 @@ st.markdown("""
         padding: 5px;
     }
     .stButton>button { width: 100%; border-radius: 10px; }
-    .stCheckbox { margin-bottom: -15px; }
     .vino-title {
         height: 50px;
         overflow: hidden;
@@ -44,13 +44,14 @@ def load_data():
         df = pd.read_excel(file_path, engine='openpyxl')
         df = df.dropna(how='all', axis=1).dropna(how='all', axis=0)
         df.columns = [str(c).strip().upper() for c in df.columns]
+        # Limpieza de datos
         df = df.map(lambda x: str(x).strip() if pd.notnull(x) else "")
         return df
     except Exception as e:
         st.error(f"Error al leer Excel: {e}")
         return pd.DataFrame()
 
-# 3. VENTANA EMERGENTE (FICHA TÉCNICA)
+# 3. VENTANA EMERGENTE
 @st.dialog("Ficha Técnica del Producto")
 def mostrar_detalles(row):
     col_img, col_info = st.columns([1, 1.2])
@@ -64,32 +65,35 @@ def mostrar_detalles(row):
         st.write(f"**Origen:** {row.get('ORIGEN', 'N/A')}")
         st.write(f"**Uvas:** {row.get('UVAS', 'N/A')}")
         st.write(f"**Añada:** {row.get('AÑADA', row.get('AÑO', 'N/A'))}")
+        
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
         if c_horeca:
             st.metric(label="Precio Tarifa Horeca", value=f"{row[c_horeca]} €")
         st.divider()
         st.caption("Información válida para temporada 2026.")
 
-# 4. FUNCIÓN GENERAR PDF
-import io  # Asegúrate de tener este import al principio del archivo
-
+# 4. FUNCIÓN GENERAR PDF (Corregida para fpdf2)
 def generar_pdf(vinos_seleccionados):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     
     def clean_txt(text):
+        # fpdf2 soporta mejor utf-8, pero por seguridad:
         return str(text).encode('latin-1', 'replace').decode('latin-1')
 
     for _, row in vinos_seleccionados.iterrows():
         pdf.add_page()
+        
+        # Encabezado
         pdf.set_font("Helvetica", "B", 16)
         pdf.set_text_color(114, 47, 55)
         pdf.cell(190, 10, clean_txt("GLOP - CATÁLOGO SELECCIONADO 2026"), ln=1, align='C')
         pdf.ln(10)
 
-        y_img = pdf.get_y()
-        url_img = str(row.get('URL', ""))
+        y_start = pdf.get_y()
         
+        # Imagen
+        url_img = str(row.get('URL', ""))
         if url_img.startswith("http"):
             try:
                 res = requests.get(url_img, timeout=5)
@@ -97,45 +101,45 @@ def generar_pdf(vinos_seleccionados):
                     with NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                         tmp.write(res.content)
                         tmp_path = tmp.name
-                    pdf.image(tmp_path, x=15, y=y_img, h=60)
+                    pdf.image(tmp_path, x=15, y=y_start, h=70)
                     os.remove(tmp_path)
             except:
-                pdf.rect(15, y_img, 40, 60)
-
-        pdf.set_xy(70, y_img)
-        pdf.set_font("Helvetica", "B", 14)
-        pdf.cell(0, 8, clean_txt(row.get('VINO', 'Vino')), ln=1)
+                pdf.rect(15, y_start, 40, 60)
+        
+        # Información
+        pdf.set_xy(70, y_start)
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.set_text_color(0, 0, 0)
+        pdf.multi_cell(0, 8, clean_txt(row.get('VINO', 'Vino')))
+        
         pdf.set_x(70)
-        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(100, 100, 100)
         pdf.cell(0, 7, clean_txt(row.get('BODEGA', 'N/A')), ln=1)
+        
         pdf.ln(5)
         pdf.set_x(70)
-        pdf.set_font("Helvetica", "", 10)
+        pdf.set_font("Helvetica", "", 11)
         pdf.set_text_color(0, 0, 0)
         
         info = f"Origen: {row.get('ORIGEN', 'N/A')}\nUvas: {row.get('UVAS', 'N/A')}\nAñada: {row.get('AÑADA', row.get('AÑO', 'N/A'))}"
-        pdf.multi_cell(0, 6, clean_txt(info))
+        pdf.multi_cell(0, 7, clean_txt(info))
         
         pdf.ln(5)
         pdf.set_x(70)
-        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_font("Helvetica", "B", 13)
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
         precio = f"{row[c_horeca]} EUR" if c_horeca else "Consultar"
-        pdf.cell(0, 8, clean_txt(f"Precio Horeca: {precio}"), ln=1)
+        pdf.cell(0, 10, clean_txt(f"Precio Horeca: {precio}"), ln=1)
 
-    # --- LA PARTE CRÍTICA ---
-    # Obtenemos el output como bytes y lo metemos en un buffer compatible con Streamlit
-    pdf_output = pdf.output() 
-    if isinstance(pdf_output, str): # Para versiones viejas de fpdf
-        return pdf_output.encode('latin-1')
-    return bytes(pdf_output) # Para fpdf2
+    return pdf.output() # Retorna bytes en fpdf2
 
 # 5. LÓGICA DE LA APP
 df = load_data()
 
+# Inicializar seleccionados
 if 'seleccionados' not in st.session_state:
-    st.session_state.seleccionados = set()
+    st.session_state.seleccionados = []
 
 with st.sidebar:
     try:
@@ -145,30 +149,39 @@ with st.sidebar:
     
     st.divider()
     
-    # Filtro por Origen
-    filtro_origen = []
     if not df.empty:
         lista_origenes = sorted(df['ORIGEN'].unique())
         filtro_origen = st.multiselect("📍 Filtrar por Origen:", options=lista_origenes)
+        busqueda = st.text_input("🔍 Buscar vino o bodega...")
     
-    busqueda = st.text_input("🔍 Buscar vino o bodega...")
+    st.divider()
     
     if st.session_state.seleccionados:
-        st.success(f"Seleccionados: {len(st.session_state.seleccionados)}")
-        df_export = df[df.index.isin(list(st.session_state.seleccionados))]
-        if st.download_button("📥 Descargar PDF", data=generar_pdf(df_export), file_name="catalogo_glop.pdf", mime="application/pdf"):
-            st.toast("Generando archivo...")
+        st.success(f"Vinos seleccionados: {len(st.session_state.seleccionados)}")
+        df_export = df[df.index.isin(st.session_state.seleccionados)]
+        
+        # Generar PDF
+        pdf_bytes = generar_pdf(df_export)
+        
+        st.download_button(
+            label="📥 Descargar Catálogo PDF",
+            data=pdf_bytes,
+            file_name="catalogo_glop_2026.pdf",
+            mime="application/pdf"
+        )
+        
         if st.button("Limpiar selección"):
-            st.session_state.seleccionados = set()
+            st.session_state.seleccionados = []
             st.rerun()
     else:
-        st.info("Selecciona productos para exportar.")
+        st.info("Selecciona vinos para generar el PDF.")
 
 # CUERPO PRINCIPAL
 if not df.empty:
     st.title("Catálogo Digital 2026")
-    df_f = df.copy()
     
+    # Aplicar Filtros
+    df_f = df.copy()
     if filtro_origen:
         df_f = df_f[df_f['ORIGEN'].isin(filtro_origen)]
     if busqueda:
@@ -176,27 +189,30 @@ if not df.empty:
                     df_f['BODEGA'].str.contains(busqueda, case=False)]
 
     if df_f.empty:
-        st.warning("No hay resultados para esta búsqueda.")
+        st.warning("No se encontraron vinos con esos filtros.")
     else:
         cols = st.columns(4)
         for i, (idx, row) in enumerate(df_f.iterrows()):
             with cols[i % 4]:
                 with st.container(border=True):
-                    # Lógica de Checkbox
-                    is_checked = idx in st.session_state.seleccionados
-                    if st.checkbox("Seleccionar", key=f"c_{idx}", value=is_checked):
-                        if idx not in st.session_state.seleccionados:
-                            st.session_state.seleccionados.add(idx)
-                            st.rerun()
-                    elif is_checked:
+                    # Checkbox optimizado
+                    seleccionado = st.checkbox("Seleccionar", key=f"sel_{idx}", 
+                                             value=(idx in st.session_state.seleccionados))
+                    
+                    # Actualizar lista sin rerun innecesario dentro del bucle
+                    if seleccionado and idx not in st.session_state.seleccionados:
+                        st.session_state.seleccionados.append(idx)
+                        st.rerun()
+                    elif not seleccionado and idx in st.session_state.seleccionados:
                         st.session_state.seleccionados.remove(idx)
                         st.rerun()
 
                     img_url = row.get('URL', "") if str(row.get('URL', "")).startswith("http") else "https://via.placeholder.com/200x300?text=Vino"
                     st.image(img_url, use_container_width=True)
                     st.markdown(f"<div class='vino-title'>{row['VINO']}</div>", unsafe_allow_html=True)
-                    st.caption(f"📍 {row['ORIGEN']} | {row['BODEGA']}")
-                    if st.button("Ficha técnica", key=f"b_{idx}"):
+                    st.caption(f"📍 {row['ORIGEN']}")
+                    
+                    if st.button("Ver Detalle", key=f"btn_{idx}"):
                         mostrar_detalles(row)
 else:
-    st.error("Error: Sube el archivo 'CATALOGO 2026 GLOP.xlsx' a la raíz del repositorio.")
+    st.error("Por favor, asegúrate de que el archivo 'CATALOGO 2026 GLOP.xlsx' esté en la carpeta del proyecto.")
