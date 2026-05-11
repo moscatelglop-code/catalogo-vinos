@@ -76,23 +76,27 @@ def mostrar_detalles(row):
 def generar_pdf(vinos_seleccionados):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page() # Añadimos la primera página fuera del bucle
     
     def clean_txt(text):
-        # fpdf2 soporta mejor utf-8, pero por seguridad:
         return str(text).encode('latin-1', 'replace').decode('latin-1')
 
+    # Encabezado principal (solo una vez al principio)
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_text_color(114, 47, 55)
+    pdf.cell(190, 10, clean_txt("GLOP - CATÁLOGO SELECCIONADO 2026"), ln=1, align='C')
+    pdf.ln(5)
+
     for _, row in vinos_seleccionados.iterrows():
-        pdf.add_page()
-        
-        # Encabezado
-        pdf.set_font("Helvetica", "B", 16)
-        pdf.set_text_color(114, 47, 55)
-        pdf.cell(190, 10, clean_txt("GLOP - CATÁLOGO SELECCIONADO 2026"), ln=1, align='C')
-        pdf.ln(10)
+        # --- CONTROL DE SALTO DE PÁGINA ---
+        # Si el cursor 'y' está muy abajo (ej. más de 220mm), saltamos de página
+        if pdf.get_y() > 220:
+            pdf.add_page()
+            pdf.ln(10)
 
         y_start = pdf.get_y()
         
-        # Imagen
+        # 1. IMAGEN (Tamaño más pequeño para que quepan varios)
         url_img = str(row.get('URL', ""))
         if url_img.startswith("http"):
             try:
@@ -101,38 +105,43 @@ def generar_pdf(vinos_seleccionados):
                     with NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                         tmp.write(res.content)
                         tmp_path = tmp.name
-                    pdf.image(tmp_path, x=15, y=y_start, h=70)
+                    pdf.image(tmp_path, x=15, y=y_start, h=40) # Reducido a 40 de alto
                     os.remove(tmp_path)
             except:
-                pdf.rect(15, y_start, 40, 60)
+                pdf.rect(15, y_start, 25, 40)
         
-        # Información
-        pdf.set_xy(70, y_start)
-        pdf.set_font("Helvetica", "B", 16)
-        pdf.set_text_color(0, 0, 0)
-        pdf.multi_cell(0, 8, clean_txt(row.get('VINO', 'Vino')))
-        
-        pdf.set_x(70)
+        # 2. INFORMACIÓN (A la derecha de la imagen)
+        pdf.set_xy(45, y_start)
         pdf.set_font("Helvetica", "B", 12)
-        pdf.set_text_color(100, 100, 100)
-        pdf.cell(0, 7, clean_txt(row.get('BODEGA', 'N/A')), ln=1)
-        
-        pdf.ln(5)
-        pdf.set_x(70)
-        pdf.set_font("Helvetica", "", 11)
         pdf.set_text_color(0, 0, 0)
+        pdf.cell(0, 7, clean_txt(row.get('VINO', 'Vino')), ln=1)
         
-        info = f"Origen: {row.get('ORIGEN', 'N/A')}\nUvas: {row.get('UVAS', 'N/A')}\nAñada: {row.get('AÑADA', row.get('AÑO', 'N/A'))}"
-        pdf.multi_cell(0, 7, clean_txt(info))
+        pdf.set_x(45)
+        pdf.set_font("Helvetica", "I", 10)
+        pdf.set_text_color(100, 100, 100)
+        pdf.cell(0, 6, clean_txt(f"{row.get('BODEGA', 'N/A')} - {row.get('ORIGEN', 'N/A')}"), ln=1)
         
-        pdf.ln(5)
-        pdf.set_x(70)
-        pdf.set_font("Helvetica", "B", 13)
+        pdf.set_x(45)
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(50, 50, 50)
+        detalles = f"Uvas: {row.get('UVAS', 'N/A')} | Añada: {row.get('AÑADA', row.get('AÑO', 'N/A'))}"
+        pdf.cell(0, 6, clean_txt(detalles), ln=1)
+        
+        # 3. PRECIO
+        pdf.set_x(45)
+        pdf.set_font("Helvetica", "B", 10)
         c_horeca = next((c for c in row.index if 'HORECA' in c and 'COMPRA' not in c), None)
         precio = f"{row[c_horeca]} EUR" if c_horeca else "Consultar"
-        pdf.cell(0, 10, clean_txt(f"Precio Horeca: {precio}"), ln=1)
+        pdf.set_text_color(114, 47, 55)
+        pdf.cell(0, 7, clean_txt(f"Precio Horeca: {precio}"), ln=1)
 
-    return pdf.output() # Retorna bytes en fpdf2
+        # Separador visual entre vinos
+        pdf.ln(10)
+        pdf.set_draw_color(230, 230, 230)
+        pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+        pdf.ln(5)
+
+    return pdf.output()
 
 # 5. LÓGICA DE LA APP
 df = load_data()
